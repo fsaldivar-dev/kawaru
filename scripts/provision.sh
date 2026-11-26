@@ -48,9 +48,40 @@ YML
 xcodebuild -project "$DIR/KawaruProvision.xcodeproj" -scheme KawaruProvision -configuration Debug \
   -derivedDataPath "$DIR/derived" -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
   DEVELOPMENT_TEAM="$TEAM" build | grep -E 'error|warning: .*[Pp]rovision|BUILD' || true
+# With --release: also a Developer ID profile, for the copy that goes to other people. Exporting an archive of
+# the same throwaway app for "developer-id" makes Xcode create it and leave it in its profiles folder, where
+# scripts/release.sh looks for it.
+if [[ "${1:-}" == "--release" ]]; then
+  xcodebuild -project "$DIR/KawaruProvision.xcodeproj" -scheme KawaruProvision -configuration Release \
+    -derivedDataPath "$DIR/derived" -archivePath "$DIR/Kawaru.xcarchive" -allowProvisioningUpdates \
+    DEVELOPMENT_TEAM="$TEAM" archive | grep -E 'error|ARCHIVE' || true
+  cat > "$DIR/export.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>developer-id</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>teamID</key><string>$TEAM</string>
+</dict>
+</plist>
+PLIST
+  xcodebuild -exportArchive -archivePath "$DIR/Kawaru.xcarchive" -exportPath "$DIR/export" \
+    -exportOptionsPlist "$DIR/export.plist" -allowProvisioningUpdates 2>&1 | grep -E 'error|EXPORT' || true
+  # Kept where release.sh looks, in case Xcode did not leave a copy in its own folder.
+  if [[ -f "$DIR/export/KawaruProvision.app/Contents/embedded.provisionprofile" ]]; then
+    mkdir -p "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+    cp "$DIR/export/KawaruProvision.app/Contents/embedded.provisionprofile" \
+       "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/kawaru-developer-id.provisionprofile"
+  fi
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -u "$DIR/export/KawaruProvision.app" >/dev/null 2>&1 || true
+fi
+
 # The throwaway app shares Kawaru's identifier and has no icon: left registered, the system shows its blank icon
 # for Kawaru. Take it out of the register before deleting it.
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-  -u "$DIR/derived/Build/Products/Debug/KawaruProvision.app" >/dev/null 2>&1 || true
+find "$PWD/$DIR" -name '*.app' -prune -print0 2>/dev/null | while IFS= read -r -d '' made; do
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$made" >/dev/null 2>&1 || true
+done
 rm -rf "$DIR"
 echo "Listo. Ahora: scripts/build.sh --install"

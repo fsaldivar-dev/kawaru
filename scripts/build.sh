@@ -9,7 +9,11 @@ cd "$(dirname "$0")/.."
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/kawaru"
 
+# KAWARU_RELEASE=1 (set by scripts/release.sh) makes the copy for other people: signed for distribution, in its own folder.
+RELEASE="${KAWARU_RELEASE:-}"
 APP="build/Kawaru.app"
+[[ -n "$RELEASE" ]] && APP="build/release/Kawaru.app"
+mkdir -p "$(dirname "$APP")"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/kawaru"
@@ -76,6 +80,13 @@ PLIST
 # signature, and an ad-hoc signature changes on every build, so the permission would be asked for
 # again after each rebuild. Without a certificate it falls back to ad-hoc.
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ {print $2; exit}')"
+# For other people's Macs it has to be Developer ID, with the hardened runtime and a timestamp, or Apple will not notarize it.
+SIGN_FLAGS=()
+if [[ -n "$RELEASE" ]]; then
+  IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/Developer ID Application/ {print $2; exit}')"
+  [[ -n "$IDENTITY" ]] || { echo "No hay certificado «Developer ID Application» en el llavero."; exit 1; }
+  SIGN_FLAGS=(--options runtime --timestamp)
+fi
 
 # The virtual camera is a system extension, and macOS only lets an app install one if the app carries a
 # provisioning profile granting it (scripts/provision.sh gets one from Xcode). Without the certificate or
@@ -94,6 +105,9 @@ if [[ -n "$TEAM" && -d "$PROFILES" ]]; then
     security cms -D -i "$f" > "$TMP" 2>/dev/null || continue
     [[ "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$TMP" 2>/dev/null)" == "$TEAM.dev.kawaru.app" ]] || continue
     [[ "$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.system-extension.install' "$TMP" 2>/dev/null)" == "true" ]] || continue
+    # A development profile only covers this developer's Macs; a Developer ID one covers them all. Each build takes its own.
+    ALL="$(/usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$TMP" 2>/dev/null || true)"
+    if [[ -n "$RELEASE" ]]; then [[ "$ALL" == "true" ]] || continue; else [[ "$ALL" != "true" ]] || continue; fi
     PROFILE="$f"
   done
   rm -f "$TMP"
@@ -148,12 +162,13 @@ PLIST
   <key>com.apple.application-identifier</key><string>$TEAM.dev.kawaru.app</string>
   <key>com.apple.developer.team-identifier</key><string>$TEAM</string>
   <key>com.apple.developer.system-extension.install</key><true/>
+  <key>com.apple.security.device.camera</key><true/>
 </dict>
 </plist>
 PLIST
   cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
-  codesign --force --sign "$IDENTITY" --entitlements "$ENT/camera.plist" --generate-entitlement-der "$EXT" >/dev/null 2>&1
-  codesign --force --sign "$IDENTITY" --entitlements "$ENT/app.plist" --generate-entitlement-der "$APP" >/dev/null 2>&1
+  codesign --force --sign "$IDENTITY" ${SIGN_FLAGS[@]+"${SIGN_FLAGS[@]}"} --entitlements "$ENT/camera.plist" --generate-entitlement-der "$EXT" >/dev/null 2>&1
+  codesign --force --sign "$IDENTITY" ${SIGN_FLAGS[@]+"${SIGN_FLAGS[@]}"} --entitlements "$ENT/app.plist" --generate-entitlement-der "$APP" >/dev/null 2>&1
   rm -rf "$ENT"
   echo "OK  $APP (con cámara virtual)"
 else
