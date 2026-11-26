@@ -133,6 +133,8 @@ Creado por **Francisco Javier Saldivar Rubio** ·
 [GitHub](https://github.com/fsaldivar-dev) ·
 [fsaldivar.dev@gmail.com](mailto:fsaldivar.dev@gmail.com)
 
+El código se publica bajo la [licencia MIT](LICENSE).
+
 Los logos de redes sociales vienen de [Simple Icons](https://simpleicons.org) (CC0) y son marcas de sus
 respectivos dueños. Las personas de las imágenes no existen: son modelos generados con IA, igual que las
 ilustraciones y las placas de los rótulos.
