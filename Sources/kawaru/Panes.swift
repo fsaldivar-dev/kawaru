@@ -260,6 +260,7 @@ struct CameraView: View {
 
 /// Who made this, and where to find them.
 struct AboutView: View {
+    var tour: () -> Void = {}
     private var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
 
     var body: some View {
@@ -283,6 +284,7 @@ struct AboutView: View {
                 link("fsaldivar.dev@gmail.com", "envelope", "mailto:fsaldivar.dev@gmail.com")
             }
             .padding(.top, 16)
+            Button("Ver el tutorial de bienvenida", action: tour).buttonStyle(.link).padding(.top, 22)
             Spacer()
             Spacer()
         }

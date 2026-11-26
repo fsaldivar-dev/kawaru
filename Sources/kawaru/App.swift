@@ -8,15 +8,22 @@ struct KawaruApp: App {
     /// `-startPane effects` on the command line opens on that part of the window.
     @State private var section = UserDefaults.standard.string(forKey: "startPane").flatMap(Pane.init(rawValue:)) ?? .live
 
+    /// The welcome tour: shown on the first launch, and again from the Help menu.
+    @State private var touring = !UserDefaults.standard.bool(forKey: "onboarded") || UserDefaults.standard.object(forKey: "tourStep") != nil
+
     var body: some Scene {
         Window("Kawaru", id: "main") {
-            ContentView(engine: engine, camera: engine.virtualCamera, section: $section)
-                .onAppear { engine.start(); engine.virtualCamera.start() }
+            ContentView(engine: engine, camera: engine.virtualCamera, section: $section, touring: $touring)
+                // On the very first launch nothing is asked of the user until the welcome tour gets to it.
+                .onAppear { if !touring { engine.start(); engine.virtualCamera.start() } }
         }
         .defaultSize(width: 1080, height: 700)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("Acerca de Kawaru") { section = .about }
+                Button("Acerca de Kawaru") { touring = false; section = .about }
+            }
+            CommandGroup(replacing: .help) {
+                Button("Tutorial de bienvenida") { touring = true }
             }
         }
     }
@@ -55,8 +62,23 @@ struct ContentView: View {
     @ObservedObject var engine: Engine
     @ObservedObject var camera: VirtualCamera
     @Binding var section: Pane
+    @Binding var touring: Bool
 
     var body: some View {
+        if touring {
+            Onboarding(engine: engine, camera: camera) {
+                UserDefaults.standard.set(true, forKey: "onboarded")
+                engine.start(); camera.start()
+                section = .effects
+                touring = false
+            }
+            .frame(minWidth: 900, minHeight: 580)
+        } else {
+            window
+        }
+    }
+
+    private var window: some View {
         NavigationSplitView {
             List(Pane.allCases, selection: Binding(get: { section }, set: { section = $0 ?? .live })) { item in
                 Label(item.title, systemImage: item.symbol).tag(item)
@@ -68,7 +90,7 @@ struct ContentView: View {
                 case .live: LiveView(engine: engine, camera: camera)
                 case .effects: EffectsView(engine: engine, section: $section)
                 case .camera: CameraView(engine: engine, camera: camera, section: $section)
-                case .about: AboutView()
+                case .about: AboutView { touring = true }
                 }
             }
             .navigationTitle(section.title)
@@ -78,13 +100,6 @@ struct ContentView: View {
             Button("Entendido", role: .cancel) {}
         } message: {
             Text(engine.recordProblem ?? "")
-        }
-        .onChange(of: engine.access) { _, access in
-            // The first time the camera is on: walk through the gesture of each effect.
-            if access == .granted, !UserDefaults.standard.bool(forKey: "practised") {
-                section = .live
-                engine.startPractice(for: Effect.allCases)
-            }
         }
         // Practising, recording and photographing the background all happen over the live picture.
         .onChange(of: engine.practice) { _, now in if now != nil { section = .live } }

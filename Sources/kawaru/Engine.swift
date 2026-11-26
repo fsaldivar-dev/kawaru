@@ -246,7 +246,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// face and raw (unsteadied) joint distance, and frames that matched. For the log.
     private var closeness: [Effect: (Int, Double, Double, Double, Double, Int)] = [:]
 
+    private var started = false
+
+    /// Asks for the camera if it has to, and starts. Safe to call again.
     func start() {
+        guard !started else { return }
+        started = true
         display.videoGravity = .resizeAspect
         registerShortcuts()
         switch AVCaptureDevice.authorizationStatus(for: .video) {

@@ -32,7 +32,11 @@ final class VirtualCamera: NSObject, ObservableObject, OSSystemExtensionRequestD
     private var sent = 0, dropped = 0, lastReport = 0.0
     private var checkingForUpdate = false
 
+    private var started = false
+
     func start() {
+        guard !started else { return }
+        started = true
         let bundle = Bundle.main
         let inside = bundle.bundleURL.appendingPathComponent("Contents/Library/SystemExtensions/\(Self.extensionID).systemextension")
         if !FileManager.default.fileExists(atPath: inside.path) {
