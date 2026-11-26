@@ -47,6 +47,7 @@ struct PreviewImage: View {
 /// The gallery: every effect as a card showing what it does, and beside it everything about the chosen one.
 struct EffectsView: View {
     @ObservedObject var engine: Engine
+    @ObservedObject var guide: Guide
     @Binding var section: Pane
     @State private var selected = Effect.substitution
     /// Bumped when the words change, so the pictures are drawn again with them.
@@ -70,10 +71,11 @@ struct EffectsView: View {
                 .padding(20)
             }
             .frame(minWidth: 260, maxWidth: .infinity)
+            .guideSpot(.gallery, in: guide)
 
             Divider()
 
-            EffectDetail(engine: engine, effect: selected, section: $section)
+            EffectDetail(engine: engine, guide: guide, effect: selected, section: $section)
                 .frame(width: 360)
         }
     }
@@ -117,6 +119,7 @@ struct EffectCard: View {
 /// Everything about one effect: what it looks like, how it is started, what it says.
 struct EffectDetail: View {
     @ObservedObject var engine: Engine
+    @ObservedObject var guide: Guide
     let effect: Effect
     @Binding var section: Pane
     /// The picture alternates between the room as it is and the room with the effect on.
@@ -142,6 +145,7 @@ struct EffectDetail: View {
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .guideSpot(.film, in: guide)
                     .onReceive(flip) { _ in withAnimation(.easeInOut(duration: 0.45)) { showingAfter.toggle() } }
                     .accessibilityLabel("Vista previa de \(effect.title)")
                     Text(effect.title).font(.title3.weight(.semibold))
@@ -152,8 +156,10 @@ struct EffectDetail: View {
                             section = .live
                         }
                         .buttonStyle(.borderedProminent)
+                        .guideSpot(.tryLive, in: guide)
                         Button("Practicar el gesto") { engine.startPractice(for: [effect]) }
                             .disabled(gesture == Gesture.none)
+                            .guideSpot(.practise, in: guide)
                     }
                     .padding(.top, 2)
                 }
@@ -165,6 +171,7 @@ struct EffectDetail: View {
                     // The recorded one is offered only once there is a recording for this effect.
                     ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[effect] != nil }) { gesture in Text(gesture.title).tag(gesture) }
                 }
+                .guideSpot(.gesture, in: guide)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(gesture.symbol).font(.system(size: 26))
                     Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -177,9 +184,11 @@ struct EffectDetail: View {
                 LabeledContent(engine.poses[effect].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
                     Button(engine.poses[effect] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: effect) }
                 }
+                .guideSpot(.record, in: guide)
                 LabeledContent("Atajo de teclado") {
                     Text(effect.shortcut).font(.body.monospaced()).foregroundStyle(.secondary)
                 }
+                .guideSpot(.shortcut, in: guide)
                 if let other = clash {
                     Label("«\(other.title)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)

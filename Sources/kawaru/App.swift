@@ -5,6 +5,7 @@ import SwiftUI
 struct KawaruApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var engine = Engine()
+    @StateObject private var guide = Guide()
     /// `-startPane effects` on the command line opens on that part of the window.
     @State private var section = UserDefaults.standard.string(forKey: "startPane").flatMap(Pane.init(rawValue:)) ?? .live
 
@@ -13,7 +14,7 @@ struct KawaruApp: App {
 
     var body: some Scene {
         Window("Kawaru", id: "main") {
-            ContentView(engine: engine, camera: engine.virtualCamera, section: $section, touring: $touring)
+            ContentView(engine: engine, camera: engine.virtualCamera, guide: guide, section: $section, touring: $touring)
                 // On the very first launch nothing is asked of the user until the welcome tour gets to it.
                 .onAppear { if !touring { engine.start(); engine.virtualCamera.start() } }
         }
@@ -23,7 +24,8 @@ struct KawaruApp: App {
                 Button("Acerca de Kawaru") { touring = false; section = .about }
             }
             CommandGroup(replacing: .help) {
-                Button("Tutorial de bienvenida") { touring = true }
+                Button("Tutorial de bienvenida") { guide.index = nil; touring = true }
+                Button("Recorrido por la ventana") { touring = false; section = .effects; guide.start() }
             }
         }
     }
@@ -61,6 +63,7 @@ enum Pane: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @ObservedObject var engine: Engine
     @ObservedObject var camera: VirtualCamera
+    @ObservedObject var guide: Guide
     @Binding var section: Pane
     @Binding var touring: Bool
 
@@ -71,6 +74,7 @@ struct ContentView: View {
                 engine.start(); camera.start()
                 section = .effects
                 touring = false
+                guide.start()   // straight on to what each part of the window is for
             }
             .frame(minWidth: 900, minHeight: 580)
         } else {
@@ -82,13 +86,14 @@ struct ContentView: View {
         NavigationSplitView {
             List(Pane.allCases, selection: Binding(get: { section }, set: { section = $0 ?? .live })) { item in
                 Label(item.title, systemImage: item.symbol).tag(item)
+                    .guideSpot(item == .camera ? .cameraPane : (item == .live ? .livePane : nil), in: guide)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
         } detail: {
             Group {
                 switch section {
                 case .live: LiveView(engine: engine, camera: camera)
-                case .effects: EffectsView(engine: engine, section: $section)
+                case .effects: EffectsView(engine: engine, guide: guide, section: $section)
                 case .camera: CameraView(engine: engine, camera: camera, section: $section)
                 case .about: AboutView { touring = true }
                 }
@@ -96,6 +101,12 @@ struct ContentView: View {
             .navigationTitle(section.title)
         }
         .frame(minWidth: 900, minHeight: 580)
+        .overlay { GuideOverlay(guide: guide) }
+        .onAppear {
+            // Someone who saw the welcome before this walk existed still gets it once. `-guideStep 4` opens on a stop.
+            let asked = UserDefaults.standard.integer(forKey: "guideStep")
+            if asked > 0 || !UserDefaults.standard.bool(forKey: "guided") { section = .effects; guide.start(at: max(0, asked - 1)) }
+        }
         .alert("No se pudo grabar la posición", isPresented: Binding(get: { engine.recordProblem != nil }, set: { if !$0 { engine.recordProblem = nil } })) {
             Button("Entendido", role: .cancel) {}
         } message: {
