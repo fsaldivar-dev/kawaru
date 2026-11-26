@@ -190,7 +190,7 @@ struct EffectDetail: View {
                 }
                 .guideSpot(.shortcut, in: guide)
                 if let other = clash {
-                    Label("«\(other.title)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
+                    Label(gesture == .custom ? "Tu posición se parece demasiado a la de «\(other)»: Kawaru no las distingue. Graba una distinta." : "«\(other)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
             }
@@ -206,9 +206,11 @@ struct EffectDetail: View {
     }
 
     /// An earlier effect bound to the same gesture wins; say so instead of failing silently.
-    private var clash: Effect? {
+    private var clash: String? {
         guard gesture != Gesture.none else { return nil }
-        return Effect.allCases.prefix(while: { $0 != effect }).first { engine.commands[$0] == gesture }
+        // Two recorded positions are only the same if the hands are the same shape, not because both are recordings.
+        if gesture == .custom { return engine.twin(of: .effect(effect)) }
+        return Effect.allCases.prefix(while: { $0 != effect }).first { engine.commands[$0] == gesture }?.title
     }
 }
 

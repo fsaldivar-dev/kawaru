@@ -118,6 +118,15 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
     }
 
+    /// Something else whose recorded position is the same hand shape as this one's, if there is any: two
+    /// recordings that cannot be told apart, of which only one will ever go off.
+    func twin(of trigger: Trigger) -> String? {
+        guard let mine = poses[trigger] else { return nil }
+        let inUse = Effect.allCases.filter { commands[$0] == .custom }.map(Trigger.effect)
+            + rotulos.filter { $0.gestureName == Gesture.custom.rawValue }.map { Trigger.caption($0.id) }
+        return inUse.first { $0 != trigger && poses[$0].map { mine.sameShape(as: $0) && ($0.faceOffset == nil) == (mine.faceOffset == nil) } == true }.map(title(of:))
+    }
+
     /// Drops whatever was recorded for a caption that is being deleted.
     func forget(_ trigger: Trigger) {
         poses[trigger] = nil; posePhotos[trigger] = nil
@@ -303,7 +312,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// face and raw (unsteadied) joint distance, and frames that matched. For the log.
     private var closeness: [Trigger: (Int, Double, Double, Double, Double, Int)] = [:]
     private var lastMatch: [Trigger: Double] = [:]
-    private var matchedThisFrame: [Trigger: Bool] = [:]
+    private var lastWinner: Trigger?
 
     /// Hand gestures start effects. Off from the menu bar when the hands are busy with something else.
     @Published var gesturesOn = UserDefaults.standard.object(forKey: "gesturesOn") as? Bool ?? true {
@@ -521,19 +530,33 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         let steady = HandShape.steadied(recent)
         // A position that matched a moment ago is held on to a little more loosely, so jitter does not drop it
         // half way through the half second it has to be held.
-        func recorded(_ effect: Trigger) -> Bool {
-            if let known = matchedThisFrame[effect] { return known }
-            let slack: CGFloat = began - (lastMatch[effect] ?? 0) < 0.35 ? 1.3 : 1
-            let found = (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect, slack: slack) }
-            if found { lastMatch[effect] = began }
-            matchedThisFrame[effect] = found
-            return found
+        func score(_ effect: Trigger) -> CGFloat? {
+            let slack: CGFloat = began - (lastMatch[effect] ?? 0) < 0.35 ? 1.2 : 1
+            var best: CGFloat?
+            for template in templates[effect] ?? [] where template.matches(steady, face: lastFace, aspect: aspect, slack: slack) {
+                let far = template.closeness(steady, face: lastFace, aspect: aspect)?.joints ?? 9
+                if best == nil || far < best! { best = far }
+            }
+            return best
         }
-        matchedThisFrame = [:]
-        /// The hands are still roughly in this recorded position, wherever they are in the picture.
-        func near(_ effect: Trigger) -> Bool { (templates[effect] ?? []).contains { $0.resembles(steady, aspect: aspect) } }
         var customs = bindings.filter { $0.value == .custom }.map { Trigger.effect($0.key) }
         customs += library.values.filter { $0.gestureName == Gesture.custom.rawValue }.map { Trigger.caption($0.id) }
+        // A hand is in one position at a time. Of the recorded positions it could pass for, only the closest
+        // counts; before this, an open hand set off every position that was loosely like an open hand (seen
+        // in the log: three effects matching the same five fingers). The one that was winning keeps winning
+        // unless another is clearly closer, so two near-identical recordings do not take turns.
+        var scores: [Trigger: CGFloat] = [:]
+        for effect in customs { if let found = score(effect) { scores[effect] = found } }
+        var winner = scores.min { $0.value < $1.value }?.key
+        if let held = lastWinner, let mine = scores[held], let best = winner.flatMap({ scores[$0] }), mine <= best + 0.06 { winner = held }
+        lastWinner = winner
+        if let winner { lastMatch[winner] = began }
+        func recorded(_ effect: Trigger) -> Bool {
+            if customs.contains(effect) { return effect == winner }
+            return score(effect) != nil   // being practised without being bound to anything
+        }
+        /// The hands are still roughly in this recorded position, wherever they are in the picture.
+        func near(_ effect: Trigger) -> Bool { (templates[effect] ?? []).contains { $0.resembles(steady, aspect: aspect) } }
         for effect in customs {
             guard let template = templates[effect]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
             let raw = template.closeness(shapes, face: lastFace, aspect: aspect)?.joints ?? .infinity

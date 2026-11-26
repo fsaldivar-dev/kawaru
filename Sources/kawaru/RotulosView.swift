@@ -133,6 +133,7 @@ struct RotuloEditor: View {
     /// Whatever else answers to the same gesture and would go first: an effect, or a caption listed earlier.
     private var clash: String? {
         guard gesture != Gesture.none else { return nil }
+        if gesture == .custom { return engine.twin(of: .caption(rotulo.id)) }
         if let effect = Effect.allCases.first(where: { engine.commands[$0] == gesture }) { return effect.title }
         return engine.rotulos.prefix(number - 1).first { $0.gestureName == gesture.rawValue }.map { $0.title.isEmpty ? $0.kind.title : $0.title }
     }
@@ -233,7 +234,7 @@ struct RotuloEditor: View {
                     Button("Practicar el gesto") { engine.startPractice(for: rotulo) }
                 }
                 if let clash {
-                    Label("«\(clash)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
+                    Label(gesture == .custom ? "Tu posición se parece demasiado a la de «\(clash)»: Kawaru no las distingue. Graba una distinta." : "«\(clash)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
                 if number <= 9 {
