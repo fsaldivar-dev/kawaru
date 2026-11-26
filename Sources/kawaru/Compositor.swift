@@ -37,10 +37,12 @@ final class Compositor {
     private var questionMix: CGFloat = 0, spotMix: CGFloat = 0, breakMix: CGFloat = 0
     private var questionAt = 0.0, breakAt = 0.0
     private var confettiAt: Double?
-    private let bubble = Overlays.bubble(["Tengo una", "pregunta"])
+    private var bubbleText = Wording.question
+    private var bubble = Overlays.bubble(Wording.question)
     private var breakCard: CIImage?
     private var breakShown = -1
-    private let sign = CIImage(cgImage: Card.draw(["Regreso en", "5 minutos"]))
+    private var signText = Wording.sign
+    private var sign = CIImage(cgImage: Card.draw(Wording.sign))
     private var signUpAt = 0.0
     private var signDownAt: Double?
     /// How long the sign takes to drop into place; the knock of wood is timed to this.
@@ -164,7 +166,7 @@ final class Compositor {
         }
 
         expired = (look == .confetti && now - (confettiAt ?? now) > Overlays.confettiTime)
-            || (look == .breakTime && now - breakAt > Overlays.breakTime + Overlays.backTime)
+            || (look == .breakTime && now - breakAt > Wording.breakTime + Overlays.backTime)
         guard mix > 0 || cloneMix > 0 || awayMix > 0 || overlaysShowing || burst != nil, let pool else { return frame }
         var out: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &out)
@@ -207,14 +209,16 @@ final class Compositor {
             scene = spotMix < 1 ? scene.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: lit, kCIInputTimeKey: spotMix]) : lit
         }
         if breakMix > 0 {
-            let left = Int((Overlays.breakTime - (now - breakAt)).rounded(.up))
+            let total = Wording.breakTime
+            let left = Int((total - (now - breakAt)).rounded(.up))
             if breakCard == nil || breakShown != left || breakCard!.extent.size != extent.size {
-                breakCard = Overlays.breakCard(w, h, left: left); breakShown = left
+                breakCard = Overlays.breakCard(w, h, left: left, of: total); breakShown = left
             }
             let card = breakCard!.composited(over: dimmed(scene, extent))
             scene = breakMix < 1 ? scene.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: card, kCIInputTimeKey: breakMix]) : card
         }
         if awayMix > 0 {
+            if signText != Wording.sign { signText = Wording.sign; sign = CIImage(cgImage: Card.draw(signText)) }
             // Whatever is in front of the camera, blurred beyond recognition and dimmed, with the sign over it.
             let dim = dimmed(scene, extent)
             var away = dim
@@ -224,6 +228,7 @@ final class Compositor {
         if questionMix > 0 {
             // The bubble grows out of its tail with a little overshoot, then bobs. It sits in the upper corner
             // on the side the person is not on.
+            if bubbleText != Wording.question { bubbleText = Wording.question; bubble = Overlays.bubble(bubbleText) }
             let t = CGFloat(now - questionAt), p = min(1, t / 0.4)
             let grow = p < 1 ? 1 + 2.7 * (p - 1) * (p - 1) * (p - 1) + 1.7 * (p - 1) * (p - 1) : 1
             let scale = CGFloat(w) * 0.4 / Overlays.bubbleSize.width * max(0.02, grow)
@@ -236,7 +241,7 @@ final class Compositor {
             scene = questionMix < 1 ? scene.applyingFilter("CIDissolveTransition", parameters: [kCIInputTargetImageKey: shown, kCIInputTimeKey: questionMix]) : shown
         }
         if let started = confettiAt, now - started <= Overlays.confettiTime {
-            scene = Overlays.confetti(w, h, t: now - started, word: "¡Bravo!").composited(over: scene)
+            scene = Overlays.confetti(w, h, t: now - started, word: Wording.cheer).composited(over: scene)
         }
         if let burst {
             let centre = CGPoint(x: (spot?.x ?? 0.5) * CGFloat(w), y: (spot?.top ?? 0.8) * 0.55 * CGFloat(h))

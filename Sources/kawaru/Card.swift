@@ -59,15 +59,20 @@ enum Card {
         // Message, hand-lettered and climbing a little.
         ctx.saveGState()
         ctx.translateBy(x: 96, y: 610); ctx.rotate(by: 0.09)
-        let font = CTFontCreateWithName("MarkerFelt-Wide" as CFString, 96, nil)
         var y: CGFloat = 0
         for (i, text) in lines.enumerated() {
-            let attributes: [NSAttributedString.Key: Any] = [
-                NSAttributedString.Key(kCTFontAttributeName as String): font,
-                NSAttributedString.Key(kCTForegroundColorAttributeName as String): ink,
-            ]
+            // The first line has the whole board; the second stops short of the dog. Longer text is lettered smaller.
+            let room: CGFloat = i == 0 ? 790 : 400
+            func line(_ size: CGFloat) -> CTLine {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName("MarkerFelt-Wide" as CFString, size, nil),
+                    NSAttributedString.Key(kCTForegroundColorAttributeName as String): ink,
+                ]
+                return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
+            }
+            let width = CGFloat(CTLineGetTypographicBounds(line(96), nil, nil, nil))
             ctx.textPosition = CGPoint(x: CGFloat(i) * 34, y: y)
-            CTLineDraw(CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes)), ctx)
+            CTLineDraw(line(width > room ? 96 * room / width : 96), ctx)
             y -= 112
         }
         ctx.restoreGState()

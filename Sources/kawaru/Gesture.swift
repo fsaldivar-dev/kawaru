@@ -74,9 +74,9 @@ enum Effect: String, CaseIterable, Identifiable {
         switch self {
         case .substitution: "Jutsu de sustitución"
         case .clones: "Clones de sombra"
-        case .away: "Vuelvo en 5 minutos"
-        case .question: "Tengo una pregunta"
-        case .confetti: "¡Bravo!"
+        case .away: "Cartel de ausencia"
+        case .question: "Globo de pregunta"
+        case .confetti: "Confeti"
         case .breakTime: "Descanso"
         case .spotlight: "Foco"
         }
@@ -86,10 +86,10 @@ enum Effect: String, CaseIterable, Identifiable {
         switch self {
         case .substitution: "Desapareces en una nube de humo y queda un tronco que cae."
         case .clones: "Aparecen copias tuyas a los lados, que se mueven contigo."
-        case .away: "Tapa la imagen con un cartel mientras no estás."
+        case .away: "Tapa la imagen con un cartel de madera mientras no estás."
         case .question: "Un globo de diálogo sobre tu imagen, para pedir la palabra sin interrumpir."
-        case .confetti: "Lluvia de confeti y un «¡Bravo!» durante unos segundos. Se quita solo."
-        case .breakTime: "Tapa la imagen con una cuenta atrás de 5 minutos. Se quita sola al terminar."
+        case .confetti: "Lluvia de confeti y una palabra de ánimo durante unos segundos. Se quita solo."
+        case .breakTime: "Tapa la imagen con una cuenta atrás. Se quita sola al terminar."
         case .spotlight: "Te deja a color y apaga el fondo, para pedir atención."
         }
     }

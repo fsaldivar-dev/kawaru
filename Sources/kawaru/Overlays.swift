@@ -20,14 +20,19 @@ enum Overlays {
     }
 
     /// Text centred on `x`, with its baseline at `y`.
-    private static func text(_ ctx: CGContext, _ string: String, font name: String, size: CGFloat, color: CGColor, x: CGFloat, y: CGFloat) {
-        let font = CTFontCreateWithName(name as CFString, size, nil)
-        let attributes: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(kCTFontAttributeName as String): font,
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
-        ]
-        let line = CTLineCreateWithAttributedString(NSAttributedString(string: string, attributes: attributes))
-        let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    private static func text(_ ctx: CGContext, _ string: String, font name: String, size: CGFloat, color: CGColor, x: CGFloat, y: CGFloat,
+                             fit: CGFloat = .infinity) {
+        func set(_ size: CGFloat) -> (CTLine, CGFloat) {
+            let attributes: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName(name as CFString, size, nil),
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
+            ]
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: string, attributes: attributes))
+            return (line, CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil)))
+        }
+        // Text wider than `fit` is set smaller, so the user's own words never run off the picture.
+        var (line, width) = set(size)
+        if width > fit { (line, width) = set(size * fit / width) }
         ctx.textPosition = CGPoint(x: x - width / 2, y: y)
         CTLineDraw(line, ctx)
     }
@@ -52,7 +57,7 @@ enum Overlays {
             text(ctx, "✋", font: "AppleColorEmoji", size: 150, color: ink, x: 150, y: 232)
             var y: CGFloat = 318
             for line in lines {
-                text(ctx, line, font: "MarkerFelt-Wide", size: 88, color: ink, x: 510, y: y)
+                text(ctx, line, font: "MarkerFelt-Wide", size: 88, color: ink, x: 510, y: y, fit: 520)
                 y -= 108
             }
         }
@@ -90,18 +95,17 @@ enum Overlays {
             let pop = p < 1 ? 1 + 2.2 * (p - 1) * (p - 1) * (p - 1) + 1.2 * (p - 1) * (p - 1) : 1   // ease-out with overshoot
             let size = H * 0.2 * max(0.05, pop)
             for (dx, dy, c) in [(5, -6, color(0x2b2118, fade)), (0, 0, color(0xffffff, fade))] as [(CGFloat, CGFloat, CGColor)] {
-                text(ctx, word, font: "MarkerFelt-Wide", size: size, color: c, x: W / 2 + dx, y: H * 0.68 + dy)
+                text(ctx, word, font: "MarkerFelt-Wide", size: size, color: c, x: W / 2 + dx, y: H * 0.68 + dy, fit: W * 0.86)
             }
         }
     }
 
     // MARK: Break
 
-    static let breakTime = 300.0
     static let backTime = 3.0
 
     /// The break card with `left` seconds to go; at zero it says the break is over.
-    static func breakCard(_ w: Int, _ h: Int, left: Int) -> CIImage {
+    static func breakCard(_ w: Int, _ h: Int, left: Int, of total: Double) -> CIImage {
         canvas(w, h) { ctx in
             let W = CGFloat(w), H = CGFloat(h), white = color(0xffffff, 0.96)
             if left <= 0 {
@@ -113,7 +117,7 @@ enum Overlays {
             // How much of the break is left, as a bar.
             let bar = CGRect(x: W * 0.3, y: H * 0.24, width: W * 0.4, height: 10)
             ctx.setFillColor(color(0xffffff, 0.25)); ctx.addPath(CGPath(roundedRect: bar, cornerWidth: 5, cornerHeight: 5, transform: nil)); ctx.fillPath()
-            let part = CGRect(x: bar.minX, y: bar.minY, width: max(10, bar.width * CGFloat(left) / CGFloat(breakTime)), height: bar.height)
+            let part = CGRect(x: bar.minX, y: bar.minY, width: max(10, bar.width * min(1, CGFloat(left) / CGFloat(total))), height: bar.height)
             ctx.setFillColor(white); ctx.addPath(CGPath(roundedRect: part, cornerWidth: 5, cornerHeight: 5, transform: nil)); ctx.fillPath()
         }
     }

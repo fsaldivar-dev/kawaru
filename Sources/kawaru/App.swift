@@ -140,7 +140,7 @@ struct StatePill: View {
         let filling = hold > 0
         let tint: Color = filling ? .accentColor : (look == .person ? .secondary : .green)
         let names: [Look: String] = [.trunk: "Tronco activo", .clones: "Clones activos", .away: "Cartel activo", .question: "Pregunta activa",
-                                     .confetti: "¡Bravo!", .breakTime: "Descanso activo", .spotlight: "Foco activo"]
+                                     .confetti: "Confeti", .breakTime: "Descanso activo", .spotlight: "Foco activo"]
         let text = filling ? holding.title + "…" : (names[look] ?? "Tú")
         HStack(spacing: 7) {
             ZStack {
@@ -181,7 +181,7 @@ struct CommandsView: View {
                                 dismiss()
                                 engine.startPractice(for: [effect])
                             }
-                            .disabled((engine.commands[effect] ?? .none) == .none)
+                            .disabled((engine.commands[effect] ?? Gesture.none) == Gesture.none)
                         }
                         LabeledContent(engine.poses[effect].map { "Tu propia posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
                             Button(engine.poses[effect] == nil ? "Grabar posición…" : "Volver a grabar…") {
@@ -192,6 +192,7 @@ struct CommandsView: View {
                         LabeledContent("Atajo de teclado") {
                             Text(effect.shortcut).font(.body.monospaced()).foregroundStyle(.secondary)
                         }
+                        WordingFields(effect: effect)
                         if let other = clash(effect) {
                             Label("«\(other.title)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
                                 .font(.callout).foregroundStyle(.orange)
@@ -235,6 +236,44 @@ struct CommandsView: View {
     private func clash(_ effect: Effect) -> Effect? {
         guard let gesture = engine.commands[effect], gesture != .none else { return nil }
         return Effect.allCases.prefix(while: { $0 != effect }).first { engine.commands[$0] == gesture }
+    }
+}
+
+/// The words an effect shows, or how long it lasts, for the effects that have either.
+struct WordingFields: View {
+    let effect: Effect
+    @AppStorage(Wording.Key.sign1.rawValue) private var sign1 = ""
+    @AppStorage(Wording.Key.sign2.rawValue) private var sign2 = ""
+    @AppStorage(Wording.Key.question1.rawValue) private var question1 = ""
+    @AppStorage(Wording.Key.question2.rawValue) private var question2 = ""
+    @AppStorage(Wording.Key.cheer.rawValue) private var cheer = ""
+    @AppStorage(Wording.Key.breakMinutes.rawValue) private var minutes = Wording.defaultBreakMinutes
+
+    var body: some View {
+        switch effect {
+        case .away:
+            field("Primera línea", $sign1, .sign1)
+            field("Segunda línea", $sign2, .sign2)
+        case .question:
+            field("Primera línea", $question1, .question1)
+            field("Segunda línea", $question2, .question2)
+        case .confetti:
+            field("Palabra", $cheer, .cheer)
+        case .breakTime:
+            Stepper(value: $minutes, in: 1...60) {
+                LabeledContent("Duración") { Text(minutes == 1 ? "1 minuto" : "\(minutes) minutos").foregroundStyle(.secondary) }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    /// Empty means the built-in text, shown as the placeholder.
+    private func field(_ label: String, _ text: Binding<String>, _ key: Wording.Key) -> some View {
+        TextField(label, text: text, prompt: Text(Wording.defaults[key] ?? ""))
+            .onChange(of: text.wrappedValue) { _, new in
+                if new.count > Wording.longest { text.wrappedValue = String(new.prefix(Wording.longest)) }
+            }
     }
 }
 
