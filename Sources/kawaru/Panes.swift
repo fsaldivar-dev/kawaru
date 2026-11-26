@@ -1,4 +1,39 @@
+import AVFoundation
 import SwiftUI
+
+/// A silent film played in a loop, with no controls.
+struct LoopingFilm: NSViewRepresentable {
+    let url: URL
+
+    final class Host: NSView {
+        let player = AVQueuePlayer()
+        var looper: AVPlayerLooper?
+        let film = AVPlayerLayer()
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            film.frame = bounds
+            CATransaction.commit()
+        }
+    }
+
+    func makeNSView(context: Context) -> Host {
+        let host = Host()
+        host.wantsLayer = true
+        host.film.player = host.player
+        host.film.videoGravity = .resizeAspect
+        host.layer?.addSublayer(host.film)
+        host.player.isMuted = true
+        host.looper = AVPlayerLooper(player: host.player, templateItem: AVPlayerItem(url: url))
+        host.player.play()
+        return host
+    }
+
+    func updateNSView(_ nsView: Host, context: Context) {}
+
+    static func dismantleNSView(_ nsView: Host, coordinator: ()) { nsView.player.pause() }
+}
 
 /// A drawn picture of an effect, scaled to fit.
 struct PreviewImage: View {
@@ -95,7 +130,10 @@ struct EffectDetail: View {
             SwiftUI.Section {
                 VStack(alignment: .leading, spacing: 10) {
                     ZStack {
-                        if let art = EffectPreview.illustration(effect) {
+                        if let film = EffectPreview.film(effect) {
+                            // The real effect on the model, switched on and off, over and over.
+                            LoopingFilm(url: film).aspectRatio(16.0 / 9.0, contentMode: .fit).id(effect)
+                        } else if let art = EffectPreview.illustration(effect) {
                             PreviewImage(image: art)
                         } else {
                             // No illustration shipped: the drawn stand-in, alternating before and after.

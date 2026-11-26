@@ -17,13 +17,21 @@ enum EffectPreview {
 
     private static var art: [Effect: CGImage] = [:]
 
-    /// The illustration shipped with the app for this effect, if there is one.
+    /// The picture shipped with the app for this effect: the model's photo with the real effect over it,
+    /// made by scripts/previews.sh.
     static func illustration(_ effect: Effect) -> CGImage? {
         if let image = art[effect] { return image }
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).png"),
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).jpg"),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         art[effect] = image
         return image
+    }
+
+    /// The short film of the effect being switched on and off, if the app ships one.
+    static func film(_ effect: Effect) -> URL? {
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).mp4"),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     /// The room with the figure in it and no effect: what the camera shows before.
