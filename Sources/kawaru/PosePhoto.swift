@@ -11,7 +11,7 @@ enum PosePhoto {
         return base.appendingPathComponent("Kawaru/poses", isDirectory: true)
     }
 
-    private static func file(_ effect: Effect) -> URL { folder.appendingPathComponent(effect.rawValue + ".jpg") }
+    private static func file(_ effect: Trigger) -> URL { folder.appendingPathComponent(effect.key + ".jpg") }
 
     /// A small JPEG of the camera frame with the hand's joints drawn on it, flipped the way the user saw themselves in the preview.
     static func encode(_ frame: CVPixelBuffer, joints: [[CGPoint?]] = []) -> Data? {
@@ -24,12 +24,12 @@ enum PosePhoto {
                                           options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.8])
     }
 
-    static func save(_ data: Data, for effect: Effect) {
+    static func save(_ data: Data, for effect: Trigger) {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try? data.write(to: file(effect), options: .atomic)
     }
 
-    static func load(_ effect: Effect) -> NSImage? { NSImage(contentsOf: file(effect)) }
+    static func load(_ effect: Trigger) -> NSImage? { NSImage(contentsOf: file(effect)) }
 
-    static func delete(_ effect: Effect) { try? FileManager.default.removeItem(at: file(effect)) }
+    static func delete(_ effect: Trigger) { try? FileManager.default.removeItem(at: file(effect)) }
 }

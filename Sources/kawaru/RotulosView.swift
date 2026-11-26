@@ -66,6 +66,7 @@ struct RotulosView: View {
     private func duplicate(_ i: Int) {
         var copy = engine.rotulos[i]
         copy.id = UUID()
+        if copy.gestureName == Gesture.custom.rawValue { copy.gestureName = nil }   // the recording stays with the original
         engine.rotulos.insert(copy, at: i + 1)
         selected = copy.id
     }
@@ -73,6 +74,7 @@ struct RotulosView: View {
     private func delete(_ i: Int) {
         let gone = engine.rotulos[i]
         if engine.captionsUp.contains(gone.id) { engine.toggle(gone) }
+        engine.forget(.caption(gone.id))
         engine.rotulos.remove(at: i)
         selected = engine.rotulos.indices.contains(i) ? engine.rotulos[i].id : engine.rotulos.last?.id
     }
@@ -142,6 +144,17 @@ struct RotuloEditor: View {
                     if let image = Rotulos.preview(rotulo, width: 960, shown: shown) {
                         PreviewImage(image: image).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .accessibilityLabel("Vista previa del rótulo")
+                            .overlay(GeometryReader { proxy in
+                                // Drag anywhere on the picture to put the caption there.
+                                Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                                    guard rotulo.kind != .card else { return }
+                                    rotulo.spot = [Double(min(1, max(0, drag.location.x / proxy.size.width))),
+                                                   Double(min(1, max(0, drag.location.y / proxy.size.height)))]
+                                })
+                            })
+                    }
+                    if rotulo.kind != .card {
+                        Text("Arrastra sobre la imagen para colocar el rótulo donde quieras.").font(.caption).foregroundStyle(.secondary)
                     }
                     HStack {
                         Button(up ? "Quitar" : "Poner en vivo") {
@@ -167,7 +180,14 @@ struct RotuloEditor: View {
                 Picker("Tema", selection: $rotulo.theme) {
                     ForEach(Rotulo.Theme.allCases) { Text($0.title).tag($0) }
                 }
-                if !rotulo.kind.places.isEmpty {
+                if rotulo.spot != nil, rotulo.kind != .card {
+                    LabeledContent("Posición") {
+                        HStack(spacing: 10) {
+                            Text("Colocado a mano").foregroundStyle(.secondary)
+                            Button("Restablecer") { rotulo.spot = nil }
+                        }
+                    }
+                } else if !rotulo.kind.places.isEmpty {
                     Picker("Posición", selection: $rotulo.place) {
                         ForEach(rotulo.kind.places) { Text($0.title).tag($0) }
                     }
@@ -193,14 +213,24 @@ struct RotuloEditor: View {
 
             Section("Cómo se activa") {
                 Picker("Posición de manos", selection: Binding(get: { gesture }, set: { rotulo.gestureName = $0 == Gesture.none ? nil : $0.rawValue })) {
-                    ForEach(Gesture.allCases.filter { $0 != .custom }) { Text($0.title).tag($0) }
+                    // The recorded one is offered only once there is a recording for this caption.
+                    ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[.caption(rotulo.id)] != nil }) { Text($0.title).tag($0) }
                 }
-                if gesture != Gesture.none {
+                if gesture == .custom, let photo = engine.posePhotos[.caption(rotulo.id)] {
+                    Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .accessibilityLabel("Foto de ti haciendo la posición grabada")
+                } else if gesture != Gesture.none {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(gesture.symbol).font(.system(size: 26))
                         Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
-                    Button("Practicar el gesto") { engine.startPractice([gesture]) }
+                }
+                LabeledContent(engine.poses[.caption(rotulo.id)].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
+                    Button(engine.poses[.caption(rotulo.id)] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: .caption(rotulo.id)) }
+                }
+                if gesture != Gesture.none {
+                    Button("Practicar el gesto") { engine.startPractice(for: rotulo) }
                 }
                 if let clash {
                     Label("«\(clash)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")

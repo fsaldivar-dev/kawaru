@@ -426,13 +426,13 @@ struct PracticeCard: View {
 /// Recording a hand position: a countdown to get the hands ready, then a moment of holding still.
 struct RecordingCard: View {
     @ObservedObject var engine: Engine
-    let effect: Effect
+    let effect: Trigger
 
     var body: some View {
         VStack(spacing: 12) {
             if let left = engine.recordCountdown {
                 Text("\(left)").font(.system(size: 96, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text("Pon las manos como quieras para «\(effect.title)»").font(.title3.weight(.medium))
+                Text("Pon las manos como quieras para «\(engine.title(of: effect))»").font(.title3.weight(.medium))
                 Text("Elige una posición que no hagas sin querer, y mantenla quieta.").font(.callout).opacity(0.85)
             } else {
                 Image(systemName: "record.circle").font(.system(size: 64, weight: .light)).symbolEffect(.pulse)

@@ -169,20 +169,20 @@ struct EffectDetail: View {
             SwiftUI.Section("Cómo se activa") {
                 Picker("Posición de manos", selection: Binding(get: { gesture }, set: { engine.commands[effect] = $0 })) {
                     // The recorded one is offered only once there is a recording for this effect.
-                    ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[effect] != nil }) { gesture in Text(gesture.title).tag(gesture) }
+                    ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[.effect(effect)] != nil }) { gesture in Text(gesture.title).tag(gesture) }
                 }
                 .guideSpot(.gesture, in: guide)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(gesture.symbol).font(.system(size: 26))
                     Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                if gesture == .custom, let photo = engine.posePhotos[effect] {
+                if gesture == .custom, let photo = engine.posePhotos[.effect(effect)] {
                     Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .accessibilityLabel("Foto de ti haciendo la posición grabada")
                 }
-                LabeledContent(engine.poses[effect].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
-                    Button(engine.poses[effect] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: effect) }
+                LabeledContent(engine.poses[.effect(effect)].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
+                    Button(engine.poses[.effect(effect)] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: .effect(effect)) }
                 }
                 .guideSpot(.record, in: guide)
                 LabeledContent("Atajo de teclado") {

@@ -116,6 +116,8 @@ struct Rotulo: Codable, Identifiable, Hashable {
     var scale: Double = 1
     /// The hand position that puts it up and takes it down (a `Gesture`'s raw value), if it has one.
     var gestureName: String?
+    /// Where the user dragged it to: its centre, 0...1 across and down the picture. Nil keeps it at `place`.
+    var spot: [Double]?
 
     /// What a new caption of each kind starts as.
     static func new(_ kind: Kind, theme: Theme = .minimal) -> Rotulo {
@@ -185,7 +187,9 @@ enum Rotulos {
             case .slide:
                 // In from the nearest edge.
                 let place = item.rotulo.place
-                if item.rotulo.kind == .banner {
+                if let spot = item.rotulo.spot, spot.count == 2 {
+                    at.x += (spot[0] > 0.5 ? 1 : -1) * (size.width + 60 * unit) * (1 - shown)
+                } else if item.rotulo.kind == .banner {
                     at.y += (place.isTop ? 1 : -1) * (size.height + 60 * unit) * (1 - shown)
                 } else {
                     at.x += (place.isRight ? 1 : -1) * (size.width + 60 * unit) * (1 - shown)
@@ -223,6 +227,12 @@ enum Rotulos {
 
     /// Where the caption's picture goes when it is fully in. The pictures carry a margin for their glow.
     private static func origin(_ r: Rotulo, size: CGSize, extent: CGRect, unit: CGFloat) -> CGPoint {
+        if let spot = r.spot, spot.count == 2, r.kind != .card {
+            // Wherever it was dragged to, kept inside the picture.
+            let x = min(max(0, CGFloat(spot[0]) * extent.width - size.width / 2), max(0, extent.width - size.width))
+            let y = min(max(0, (1 - CGFloat(spot[1])) * extent.height - size.height / 2), max(0, extent.height - size.height))
+            return CGPoint(x: x, y: y)
+        }
         let pad = padding * unit
         let wide = r.kind == .banner && (r.theme == .corporate || r.theme == .neon)   // these banners run edge to edge
         let margin = (wide ? 0 : 36) * extent.width / 1280

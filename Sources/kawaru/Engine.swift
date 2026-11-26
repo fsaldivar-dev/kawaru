@@ -5,6 +5,19 @@ import Combine
 import QuartzCore
 import Vision
 
+/// What a recorded hand position is for: one of the effects, or one of the user's captions.
+enum Trigger: Hashable {
+    case effect(Effect), caption(UUID)
+
+    /// The name it is stored under.
+    var key: String {
+        switch self {
+        case .effect(let effect): effect.rawValue
+        case .caption(let id): "rotulo-" + id.uuidString
+        }
+    }
+}
+
 /// Camera in, Vision, compositor, preview out.
 final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     enum Access { case asking, granted, denied, noCamera }
@@ -65,11 +78,11 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// The joints of the hands in view, per hand, in the frame (0...1, y up); nil where Vision is unsure.
     /// Only filled while recording or practising, to draw over the picture what is being read.
     @Published private(set) var joints: [[CGPoint?]] = []
-    @Published private(set) var poses: [Effect: PoseTemplate] = Engine.savedPoses()
+    @Published private(set) var poses: [Trigger: PoseTemplate] = Engine.savedPoses()
     /// A photo of the user holding each recorded position, to remember it by.
-    @Published private(set) var posePhotos: [Effect: NSImage] = Dictionary(uniqueKeysWithValues: Effect.allCases.compactMap { e in PosePhoto.load(e).map { (e, $0) } })
+    @Published private(set) var posePhotos: [Trigger: NSImage] = Dictionary(uniqueKeysWithValues: Engine.everyTrigger().compactMap { t in PosePhoto.load(t).map { (t, $0) } })
     /// The effect a position is being recorded for, if any.
-    @Published private(set) var recording: Effect?
+    @Published private(set) var recording: Trigger?
     /// Seconds left before recording starts; nil once it is recording.
     @Published private(set) var recordCountdown: Int?
     /// Set when the last recording could not be used.
@@ -78,10 +91,10 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
     /// Every take of each recorded position: the first one and the repetitions that taught its variations.
     /// A hand matches the position when it matches any of them.
-    private static func savedVariants() -> [Effect: [PoseTemplate]] {
-        var result: [Effect: [PoseTemplate]] = [:]
+    private static func savedVariants() -> [Trigger: [PoseTemplate]] {
+        var result: [Trigger: [PoseTemplate]] = [:]
         for (effect, first) in savedPoses() {
-            let more = UserDefaults.standard.data(forKey: "poses." + effect.rawValue).flatMap { try? JSONDecoder().decode([PoseTemplate].self, from: $0) }
+            let more = UserDefaults.standard.data(forKey: "poses." + effect.key).flatMap { try? JSONDecoder().decode([PoseTemplate].self, from: $0) }
             result[effect] = more ?? [first]
         }
         return result
@@ -90,10 +103,32 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// True while the repetitions after a recording are teaching variations of the position.
     @Published private(set) var refining = false
 
-    private static func savedPoses() -> [Effect: PoseTemplate] {
-        var result: [Effect: PoseTemplate] = [:]
-        for effect in Effect.allCases {
-            if let data = UserDefaults.standard.data(forKey: "pose." + effect.rawValue), let pose = try? JSONDecoder().decode(PoseTemplate.self, from: data) {
+    /// Everything a position can have been recorded for: each effect, and each of the user's captions.
+    private static func everyTrigger() -> [Trigger] {
+        Effect.allCases.map(Trigger.effect) + savedRotulos().map { Trigger.caption($0.id) }
+    }
+
+    /// What is shown while recording a position: the name of what it is for.
+    func title(of trigger: Trigger) -> String {
+        switch trigger {
+        case .effect(let effect): effect.title
+        case .caption(let id): rotulos.first { $0.id == id }.map { $0.title.isEmpty ? $0.kind.title : $0.title } ?? "el rótulo"
+        }
+    }
+
+    /// Drops whatever was recorded for a caption that is being deleted.
+    func forget(_ trigger: Trigger) {
+        poses[trigger] = nil; posePhotos[trigger] = nil
+        PosePhoto.delete(trigger)
+        UserDefaults.standard.removeObject(forKey: "pose." + trigger.key)
+        UserDefaults.standard.removeObject(forKey: "poses." + trigger.key)
+        queue.async { self.templates[trigger] = nil }
+    }
+
+    private static func savedPoses() -> [Trigger: PoseTemplate] {
+        var result: [Trigger: PoseTemplate] = [:]
+        for effect in everyTrigger() {
+            if let data = UserDefaults.standard.data(forKey: "pose." + effect.key), let pose = try? JSONDecoder().decode(PoseTemplate.self, from: data) {
                 result[effect] = pose
             }
         }
@@ -101,7 +136,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     }
 
     /// Counts down, then watches the hands for a moment and keeps their position as this effect's gesture.
-    func startRecording(for effect: Effect) {
+    func startRecording(for effect: Trigger) {
         guard recording == nil else { return }
         stopPractice()
         recordProblem = nil
@@ -124,7 +159,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         queue.async { self.sampling = nil; self.quiet = false }
     }
 
-    private func finishRecording(_ effect: Effect, _ pose: PoseTemplate?, photo: Data?) {
+    private func finishRecording(_ effect: Trigger, _ pose: PoseTemplate?, photo: Data?) {
         queue.async { self.quiet = false }
         guard recording == effect else { return }
         recording = nil
@@ -139,10 +174,13 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         } else {
             PosePhoto.delete(effect); posePhotos[effect] = nil   // never show the photo of an older position
         }
-        if let data = try? JSONEncoder().encode(pose) { UserDefaults.standard.set(data, forKey: "pose." + effect.rawValue) }
-        UserDefaults.standard.removeObject(forKey: "poses." + effect.rawValue)
+        if let data = try? JSONEncoder().encode(pose) { UserDefaults.standard.set(data, forKey: "pose." + effect.key) }
+        UserDefaults.standard.removeObject(forKey: "poses." + effect.key)
         queue.async { self.templates[effect] = [pose]; self.teaching = effect; self.taught = []; self.teachingStarts = true }
-        commands[effect] = .custom
+        switch effect {
+        case .effect(let which): commands[which] = .custom
+        case .caption(let id): if let i = rotulos.firstIndex(where: { $0.id == id }) { rotulos[i].gestureName = Gesture.custom.rawValue }
+        }
         // Straight into three repetitions. They do not test the first take: each one is kept as a variation,
         // so the position is learnt the way the user really makes it.
         practiceEffect = effect
@@ -151,14 +189,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     }
 
     /// The effect whose recorded position is being practised.
-    @Published private(set) var practiceEffect: Effect? {
+    @Published private(set) var practiceEffect: Trigger? {
         didSet { let e = practiceEffect; queue.async { self.practisingEffect = e } }
     }
 
     /// Practise the gesture bound to an effect (recorded positions need to know which effect).
     func startPractice(for effects: [Effect]) {
-        practiceEffect = effects.first { commands[$0] == .custom }
+        practiceEffect = effects.first { commands[$0] == .custom }.map(Trigger.effect)
         startPractice(effects.map { commands[$0] ?? .none })
+    }
+
+    /// Practise the gesture a caption answers to.
+    func startPractice(for rotulo: Rotulo) {
+        guard let gesture = rotulo.gestureName.flatMap(Gesture.init(rawValue:)), gesture != .none else { return }
+        practiceEffect = gesture == .custom ? .caption(rotulo.id) : nil
+        startPractice([gesture])
     }
 
     /// Start or stop an effect from a keyboard shortcut.
@@ -233,13 +278,13 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var shownTip: String?
     private var templates = Engine.savedVariants()
     /// The effect whose repetitions are being kept as variations, and the frames of the one in progress.
-    private var teaching: Effect?
+    private var teaching: Trigger?
     /// Set when the repetitions begin: the hands are still in the first take's position and have to be let
     /// go before a repetition counts, or the first one would be the same take again.
     private var teachingStarts = false
     private var taught: [(hands: [HandShape], face: CGRect?)] = []
-    private var practisingEffect: Effect?
-    private var sampling: Effect?
+    private var practisingEffect: Trigger?
+    private var sampling: Trigger?
     private var quiet = false
     private var listening = UserDefaults.standard.object(forKey: "gesturesOn") as? Bool ?? true
     private var sampleUntil = 0.0
@@ -437,8 +482,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         // The face is looked for when a command is read against it, when a recorded position is tied to it, and
         // always while recording, to find out whether the hand is by the face.
         let usesFace = sampling != nil || practising?.needsFace ?? bindings.values.contains(where: \.needsFace)
-            || bindings.contains { $0.value == .custom && (templates[$0.key] ?? []).contains { $0.faceOffset != nil } }
+            || bindings.contains { $0.value == .custom && (templates[.effect($0.key)] ?? []).contains { $0.faceOffset != nil } }
             || library.values.contains { $0.gestureName.flatMap(Gesture.init(rawValue:))?.needsFace == true }
+            || library.values.contains { $0.gestureName == Gesture.custom.rawValue && (templates[.caption($0.id)] ?? []).contains { $0.faceOffset != nil } }
         let needFace = needHands && usesFace
         var requests: [VNRequest] = []
         if needHands { requests.append(hands) }
@@ -469,13 +515,13 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         recent.append(shapes.sorted { $0.centre.x < $1.centre.x })
         if recent.count > 5 { recent.removeFirst() }
         let steady = HandShape.steadied(recent)
-        func recorded(_ effect: Effect) -> Bool { (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect) } }
+        func recorded(_ effect: Trigger) -> Bool { (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect) } }
         for (effect, gesture) in bindings where gesture == .custom {
-            guard let template = templates[effect]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
+            guard let template = templates[.effect(effect)]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
             let raw = template.closeness(shapes, face: lastFace, aspect: aspect)?.joints ?? .infinity
             var tally = closeness[effect] ?? (0, 0, 0, 0, 0, 0)
             tally.0 += 1; tally.1 += Double(now.joints); tally.2 += Double(now.finger); tally.3 += Double(now.place)
-            tally.4 += raw.isFinite ? Double(raw) : 0; tally.5 += recorded(effect) ? 1 : 0
+            tally.4 += raw.isFinite ? Double(raw) : 0; tally.5 += recorded(.effect(effect)) ? 1 : 0
             closeness[effect] = tally
         }
 
@@ -486,7 +532,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 let pose = PoseTemplate.make(from: samples, aspect: aspect)
                 let handCounts = (0...2).map { n in "\(n)x\(samples.filter { $0.hands.count == n }.count)" }.joined(separator: " ")
                 samples = []
-                if let pose { print(String(format: "pose: grabada para %@, %d mano(s), tolerancia %.2f, cara=%@, manos vistas por fotograma: %@", effect.rawValue, pose.hands.count, pose.tolerance, pose.faceOffset == nil ? "no" : "si", handCounts)) }
+                if let pose { print(String(format: "pose: grabada para %@, %d mano(s), tolerancia %.2f, cara=%@, manos vistas por fotograma: %@", effect.key, pose.hands.count, pose.tolerance, pose.faceOffset == nil ? "no" : "si", handCounts)) }
                 else { print("pose: grabación sin manos suficientes") }
                 fflush(stdout)
                 let photo = pose == nil ? nil : PosePhoto.encode(frame, joints: dots)
@@ -511,8 +557,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                     if let variant = PoseTemplate.make(from: taught, aspect: aspect, atLeast: 6), variant.hands.count == templates[effect]?.first?.hands.count {
                         templates[effect]?.append(variant)
                         let all = templates[effect] ?? []
-                        print(String(format: "pose: variante %d para %@, tolerancia %.2f", all.count - 1, effect.rawValue, variant.tolerance)); fflush(stdout)
-                        if let data = try? JSONEncoder().encode(all) { UserDefaults.standard.set(data, forKey: "poses." + effect.rawValue) }
+                        print(String(format: "pose: variante %d para %@, tolerancia %.2f", all.count - 1, effect.key, variant.tolerance)); fflush(stdout)
+                        if let data = try? JSONEncoder().encode(all) { UserDefaults.standard.set(data, forKey: "poses." + effect.key) }
                     }
                     taught = []
                     if hits + 1 >= Engine.practiceGoal { teaching = nil }
@@ -537,7 +583,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             var firedEffect: Effect?
             for effect in Effect.allCases {
                 let gesture = bindings[effect] ?? .none
-                let present = gesture == .custom ? recorded(effect) : (gesture != .none && seen.contains(gesture))
+                let present = gesture == .custom ? recorded(.effect(effect)) : (gesture != .none && seen.contains(gesture))
                 var meter = meters[effect] ?? HoldMeter()
                 let fired = firedEffect == nil && meter.update(present: present, now: began)
                 meters[effect] = meter
@@ -549,9 +595,10 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             var firedCaption: UUID?
             for id in libraryOrder {
                 guard let rotulo = library[id] else { continue }
-                guard let gesture = rotulo.gestureName.flatMap(Gesture.init(rawValue:)), gesture != .none, gesture != .custom else { captionMeters[id] = nil; continue }
+                guard let gesture = rotulo.gestureName.flatMap(Gesture.init(rawValue:)), gesture != .none else { captionMeters[id] = nil; continue }
                 var meter = captionMeters[id] ?? HoldMeter()
-                let fired = firedEffect == nil && firedCaption == nil && meter.update(present: seen.contains(gesture), now: began)
+                let present = gesture == .custom ? recorded(.caption(id)) : seen.contains(gesture)
+                let fired = firedEffect == nil && firedCaption == nil && meter.update(present: present, now: began)
                 captionMeters[id] = meter
                 if meter.progress > progress { progress = meter.progress; held = gesture }
                 if fired { firedCaption = id }
@@ -619,7 +666,7 @@ let gestures = seenCounts.map { "\($0.key.rawValue)=\($0.value)" }.sorted().join
             for (effect, t) in closeness.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
                 let n = Double(t.0)
                 print(String(format: "  pose %@: coincide %d/%d, dedos %.2f (sin promediar %.2f), peor dedo %.2f, lugar %.2f, tolerancia %.2f", effect.rawValue,
-                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[effect]?.first?.tolerance ?? 0, PoseTemplate.loosest)))
+                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[.effect(effect)]?.first?.tolerance ?? 0, PoseTemplate.loosest)))
             }
             closeness = [:]
             fflush(stdout)
