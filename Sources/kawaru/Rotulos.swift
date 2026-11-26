@@ -114,7 +114,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
     }
 
     enum Theme: String, Codable, CaseIterable, Identifiable {
-        case minimal, corporate, neon, wood
+        case minimal, corporate, neon, wood, custom
 
         var id: String { rawValue }
 
@@ -124,6 +124,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
             case .corporate: "Corporativo"
             case .neon: "Neón"
             case .wood: "Madera"
+            case .custom: "Personalizado"
             }
         }
     }
@@ -180,6 +181,54 @@ struct Rotulo: Codable, Identifiable, Hashable {
     var spot: [Double]?
     /// For a social caption: which network (a `Network`'s raw value).
     var networkName: String?
+    /// The user's own looks, used by the «Personalizado» theme.
+    var style: Style?
+    /// For a social caption: the user's own picture instead of the network's initials (a file in the app's folder).
+    var iconPath: String?
+
+    /// Colours, lettering and shape chosen by the user.
+    struct Style: Codable, Hashable {
+        enum Lettering: String, Codable, CaseIterable, Identifiable {
+            case clean, rounded, elegant, script, marker, condensed, typewriter
+
+            var id: String { rawValue }
+
+            var title: String {
+                switch self {
+                case .clean: "Limpia"
+                case .rounded: "Redonda"
+                case .elegant: "Elegante"
+                case .script: "Manuscrita"
+                case .marker: "Rotulador"
+                case .condensed: "Condensada"
+                case .typewriter: "Máquina"
+                }
+            }
+
+            /// The heavy and the light face.
+            var faces: (String, String) {
+                switch self {
+                case .clean: ("AvenirNext-Bold", "AvenirNext-Regular")
+                case .rounded: ("ArialRoundedMTBold", "ArialRoundedMTBold")
+                case .elegant: ("Didot-Bold", "Didot")
+                case .script: ("SnellRoundhand-Black", "SnellRoundhand-Bold")
+                case .marker: ("MarkerFelt-Wide", "MarkerFelt-Thin")
+                case .condensed: ("DINCondensed-Bold", "DINCondensed-Bold")
+                case .typewriter: ("AmericanTypewriter-Bold", "AmericanTypewriter")
+                }
+            }
+        }
+
+        var background: Int = 0x1f1147
+        var backgroundAlpha: Double = 0.92
+        var text: Int = 0xffffff
+        var accent: Int = 0xff5fa2
+        var lettering: Lettering = .clean
+        /// 0 square corners ... 1 fully rounded ends.
+        var corner: Double = 0.5
+    }
+
+    var look: Style { style ?? Style() }
 
     var network: Network { networkName.flatMap(Network.init(rawValue:)) ?? .linkedin }
 
@@ -225,8 +274,13 @@ enum Rotulos {
     /// The picture with every caption that is up laid over it, each where its animation has it at `now`.
     static func apply(_ showing: [Showing], to scene: CIImage, extent: CGRect, now: Double) -> CIImage {
         var scene = scene
-        // Cards first: they cover the picture, and the rest sits over them.
-        for item in showing.sorted(by: { ($0.rotulo.kind == .card ? 0 : 1) < ($1.rotulo.kind == .card ? 0 : 1) }) {
+        // Cards first: they cover the picture, and the rest sits over them. Then the banners that run from edge
+        // to edge, so whatever shares their side is laid out clear of them, and the rest in the order they came up.
+        func rank(_ r: Rotulo) -> Int { r.kind == .card ? 0 : (edgeToEdge(r) ? 1 : 2) }
+        let ordered = showing.sorted { rank($0.rotulo) != rank($1.rotulo) ? rank($0.rotulo) < rank($1.rotulo) : $0.since < $1.since }
+        // How much of each corner is taken already: captions that share a place stack instead of covering each other.
+        var taken: [Rotulo.Place: CGFloat] = [:]
+        for item in ordered {
             let shown = visible(item, now: now)
             guard shown > 0.001 else { continue }
             // A fifth larger than drawn: in a call the picture is often a small tile, and the words have to carry.
@@ -243,7 +297,19 @@ enum Rotulos {
             }
             let picture = image(item.rotulo, unit: unit, frame: extent.size)
             let size = CGSize(width: picture.width, height: picture.height)
-            let home = origin(item.rotulo, size: size, extent: extent, unit: unit)
+            var home = origin(item.rotulo, size: size, extent: extent, unit: unit)
+            if item.rotulo.spot == nil {
+                let place = item.rotulo.place
+                let rise = taken[place] ?? 0
+                home.y += place.isTop ? -rise : rise
+                // The picture has a clear margin all round it; only what is drawn takes up room.
+                let step = size.height - padding * unit * 2 + 10 * extent.width / 1280
+                if edgeToEdge(item.rotulo) {
+                    for side in (place.isTop ? [Rotulo.Place.topLeft, .top, .topRight] : [.bottomLeft, .bottom, .bottomRight]) { taken[side, default: 0] = rise + step }
+                } else {
+                    taken[place] = rise + step
+                }
+            }
             var layer = CIImage(cgImage: picture)
             var at = home
             switch item.rotulo.entrance {
@@ -290,6 +356,9 @@ enum Rotulos {
         alpha >= 1 ? image : image.applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: alpha)])
     }
 
+    /// The banners that run from one side of the picture to the other.
+    private static func edgeToEdge(_ r: Rotulo) -> Bool { r.kind == .banner && (r.theme == .corporate || r.theme == .neon) }
+
     /// Where the caption's picture goes when it is fully in. The pictures carry a margin for their glow.
     private static func origin(_ r: Rotulo, size: CGSize, extent: CGRect, unit: CGFloat) -> CGPoint {
         if let spot = r.spot, spot.count == 2, r.kind != .card {
@@ -299,8 +368,7 @@ enum Rotulos {
             return CGPoint(x: x, y: y)
         }
         let pad = padding * unit
-        let wide = r.kind == .banner && (r.theme == .corporate || r.theme == .neon)   // these banners run edge to edge
-        let margin = (wide ? 0 : 36) * extent.width / 1280
+        let margin = (edgeToEdge(r) ? 0 : 36) * extent.width / 1280
         let x: CGFloat
         if r.place.isLeft { x = margin - pad } else if r.place.isRight { x = extent.width - margin - size.width + pad } else { x = (extent.width - size.width) / 2 }
         let y = r.place.isTop ? extent.height - margin - size.height + pad : margin - pad
@@ -353,7 +421,7 @@ enum Rotulos {
 
     /// The caption drawn at its final size, cached until its words or looks change.
     static func image(_ r: Rotulo, unit: CGFloat, frame: CGSize) -> CGImage {
-        let key = "\(r.kind.rawValue)|\(r.theme.rawValue)|\(r.title)|\(r.subtitle)|\(r.networkName ?? "")|\(unit)|\(frame.width)x\(frame.height)"
+        let key = "\(r.kind.rawValue)|\(r.theme.rawValue)|\(r.title)|\(r.subtitle)|\(r.networkName ?? "")|\(r.theme == .custom ? "\(r.look.hashValue)" : "")|\(r.iconPath ?? "")|\(unit)|\(frame.width)x\(frame.height)"
         lock.lock(); defer { lock.unlock() }
         if let made = cache[key] { return made }
         if cache.count > 80 { cache.removeAll() }
@@ -471,6 +539,7 @@ enum Rotulos {
     private static func lowerThird(_ r: Rotulo, _ unit: CGFloat) -> CGImage {
         let has = !r.subtitle.trimmingCharacters(in: .whitespaces).isEmpty
         switch r.theme {
+        case .custom: return plain(r, unit, full: nil)
         case .minimal:
             let name = fitted(r.title, "AvenirNext-Bold", 34, color(0x141416), fit: 620)
             let sub = fitted(r.subtitle, "AvenirNext-Regular", 21, color(0x5a5a60), fit: 620)
@@ -538,6 +607,7 @@ enum Rotulos {
         let has = !r.subtitle.trimmingCharacters(in: .whitespaces).isEmpty
         let full = frameWidth / unit   // the picture's width in this caption's own units
         switch r.theme {
+        case .custom: return plain(r, unit, full: full)
         case .minimal:
             let head = fitted(r.title, "AvenirNext-DemiBold", 20, color(0xffffff), fit: 420)
             let body = fitted(r.subtitle, "AvenirNext-Regular", 20, color(0xffffff, 0.86), fit: max(200, full - 200 - width(head)))
@@ -586,6 +656,7 @@ enum Rotulos {
 
     private static func badge(_ r: Rotulo, _ unit: CGFloat) -> CGImage {
         switch r.theme {
+        case .custom: return plain(r, unit, full: nil)
         case .minimal:
             let words = fitted(r.title.uppercased(), "AvenirNext-Bold", 17, color(0x141416), fit: 320, tracking: 0.6)
             let size = CGSize(width: width(words) + 58, height: 42)
@@ -636,16 +707,96 @@ enum Rotulos {
         }
     }
 
+    private static var icons: [String: CGImage] = [:]
+
+    /// The user's own icon for a social caption, if they chose one and the file is still there.
+    private static func icon(_ r: Rotulo) -> CGImage? {
+        guard let path = r.iconPath else { return nil }
+        if let made = icons[path] { return made }
+        guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        icons[path] = image
+        return image
+    }
+
+    /// Any kind of caption in the user's own colours, lettering and shape. `full` is the picture's width, for the banner.
+    private static func plain(_ r: Rotulo, _ unit: CGFloat, full: CGFloat?) -> CGImage {
+        let look = r.look, faces = look.lettering.faces
+        let ink = color(UInt32(look.text)), soft = color(UInt32(look.text), 0.78), back = color(UInt32(look.background), CGFloat(look.backgroundAlpha)), accent = color(UInt32(look.accent))
+        let has = r.kind.hasSubtitle && !r.subtitle.trimmingCharacters(in: .whitespaces).isEmpty
+        func box(_ ctx: CGContext, _ size: CGSize) {
+            let path = rounded(CGRect(origin: .zero, size: size), CGFloat(look.corner) * size.height / 2)
+            ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -3 * unit), blur: 14 * unit, color: color(0x000000, 0.22))
+            fill(ctx, path, back); ctx.restoreGState()
+        }
+        switch r.kind {
+        case .lowerThird:
+            let name = fitted(r.title, faces.0, 36, ink, fit: 620), sub = fitted(r.subtitle, faces.1, 21, soft, fit: 620)
+            let inset = 30 + CGFloat(look.corner) * 14
+            let size = CGSize(width: max(280, max(width(name), has ? width(sub) : 0) + inset * 2), height: has ? 110 : 74)
+            return canvas(size, unit) { ctx in
+                box(ctx, size)
+                // The accent: a short bar under the name.
+                ctx.setFillColor(accent); ctx.fill(CGRect(x: inset, y: has ? 47 : 14, width: 44, height: 3))
+                put(name, ctx, x: inset, y: has ? 64 : 30)
+                if has { put(sub, ctx, x: inset, y: 20) }
+            }
+        case .banner:
+            let wide = (full ?? 1280) - 200
+            let head = fitted(r.title, faces.0, 21, ink, fit: 420), body = fitted(r.subtitle, faces.1, 20, soft, fit: max(200, wide - width(head)))
+            let size = CGSize(width: width(head) + (has ? width(body) + 30 : 0) + 56, height: 50)
+            return canvas(size, unit) { ctx in
+                box(ctx, size)
+                put(head, ctx, x: 28, y: 17)
+                if has {
+                    ctx.setFillColor(accent); ctx.fillEllipse(in: CGRect(x: 28 + width(head) + 11, y: 21, width: 8, height: 8))
+                    put(body, ctx, x: 28 + width(head) + 30, y: 17)
+                }
+            }
+        case .badge:
+            let words = fitted(r.title, faces.0, 19, ink, fit: 320)
+            let size = CGSize(width: width(words) + 62, height: 44)
+            return canvas(size, unit) { ctx in
+                box(ctx, size)
+                ctx.setFillColor(accent); ctx.fillEllipse(in: CGRect(x: 18, y: 15, width: 14, height: 14))
+                put(words, ctx, x: 42, y: 14)
+            }
+        case .social:
+            let net = r.network
+            let words = fitted(r.title, faces.0, 20, ink, fit: 420)
+            let mark = line(net.initials, "AvenirNext-Bold", net.initials.count > 2 ? 13 : 18, color(0xffffff))
+            let size = CGSize(width: width(words) + 80, height: 50)
+            return canvas(size, unit) { ctx in
+                box(ctx, size)
+                let tile = CGRect(x: 11, y: 10, width: 30, height: 30)
+                if let own = icon(r) {
+                    ctx.saveGState(); ctx.addPath(rounded(tile, 8)); ctx.clip(); ctx.interpolationQuality = .high; ctx.draw(own, in: tile); ctx.restoreGState()
+                } else {
+                    fill(ctx, rounded(tile, 8), accent)
+                    put(mark, ctx, x: tile.midX - width(mark) / 2, y: tile.midY - (net.initials.count > 2 ? 5 : 6.5))
+                }
+                put(words, ctx, x: 52, y: 17)
+            }
+        case .card:
+            return canvas(CGSize(width: 10, height: 10), unit) { _ in }   // cards are drawn by `card`
+        }
+    }
+
     /// A social handle: the network's initials on its colour, and the user's name there.
     private static func social(_ r: Rotulo, _ unit: CGFloat) -> CGImage {
         let net = r.network
         let mark = line(net.initials, "AvenirNext-Bold", net.initials.count > 2 ? 13 : 18, color(0xffffff))
         // The tile with the initials, `side` square, drawn with its corner at (x, y).
         func tile(_ ctx: CGContext, x: CGFloat, y: CGFloat, side: CGFloat) {
+            if let own = icon(r) {   // the user's own picture, as they made it
+                ctx.saveGState(); ctx.addPath(rounded(CGRect(x: x, y: y, width: side, height: side), side * 0.26)); ctx.clip()
+                ctx.interpolationQuality = .high; ctx.draw(own, in: CGRect(x: x, y: y, width: side, height: side)); ctx.restoreGState()
+                return
+            }
             fill(ctx, rounded(CGRect(x: x, y: y, width: side, height: side), side * 0.26), color(net.tint))
             put(mark, ctx, x: x + (side - width(mark)) / 2, y: y + side / 2 - (net.initials.count > 2 ? 5 : 6.5))
         }
         switch r.theme {
+        case .custom: return plain(r, unit, full: nil)
         case .minimal:
             let words = fitted(r.title, "AvenirNext-Medium", 20, color(0x141416), fit: 420)
             let size = CGSize(width: width(words) + 76, height: 48)
@@ -699,6 +850,10 @@ enum Rotulos {
         let has = !r.subtitle.trimmingCharacters(in: .whitespaces).isEmpty
         let title: CTLine, sub: CTLine
         switch r.theme {
+        case .custom:
+            let faces = r.look.lettering.faces
+            title = fitted(r.title, faces.0, 70, color(UInt32(r.look.text)), fit: W - 160)
+            sub = fitted(r.subtitle, faces.1, 27, color(UInt32(r.look.text), 0.88), fit: W - 200)
         case .minimal:
             title = fitted(r.title, "AvenirNext-Bold", 68, color(0xffffff), fit: W - 160)
             sub = fitted(r.subtitle, "AvenirNext-Regular", 26, color(0xffffff, 0.85), fit: W - 200)
@@ -719,10 +874,10 @@ enum Rotulos {
         else { ctx.setShadow(offset: CGSize(width: 0, height: -3 * unit), blur: 14 * unit, color: color(0x000000, 0.35)) }
         put(title, ctx, x: (W - width(title)) / 2, y: titleY)
         ctx.restoreGState()
-        if r.theme == .corporate {
-            ctx.setFillColor(color(0xffb020)); ctx.fill(CGRect(x: (W - 120) / 2, y: titleY - 22, width: 120, height: 5))
+        if r.theme == .corporate || r.theme == .custom {
+            ctx.setFillColor(r.theme == .custom ? color(UInt32(r.look.accent)) : color(0xffb020)); ctx.fill(CGRect(x: (W - 120) / 2, y: titleY - 22, width: 120, height: 5))
         }
-        if has { put(sub, ctx, x: (W - width(sub)) / 2, y: titleY - (r.theme == .corporate ? 66 : 54)) }
+        if has { put(sub, ctx, x: (W - width(sub)) / 2, y: titleY - (r.theme == .corporate || r.theme == .custom ? 66 : 54)) }
         return ctx.makeImage()!
     }
 }

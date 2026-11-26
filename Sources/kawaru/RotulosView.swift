@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The captions: the list of the user's own, and beside it everything about the chosen one.
 struct RotulosView: View {
@@ -67,6 +68,7 @@ struct RotulosView: View {
         var copy = engine.rotulos[i]
         copy.id = UUID()
         if copy.gestureName == Gesture.custom.rawValue { copy.gestureName = nil }   // the recording stays with the original
+        copy.iconPath = OwnIcon.copy(of: copy.iconPath)   // its own file, so deleting one does not strip the other
         engine.rotulos.insert(copy, at: i + 1)
         selected = copy.id
     }
@@ -75,6 +77,7 @@ struct RotulosView: View {
         let gone = engine.rotulos[i]
         if engine.captionsUp.contains(gone.id) { engine.toggle(gone) }
         engine.forget(.caption(gone.id))
+        OwnIcon.remove(gone.iconPath)
         engine.rotulos.remove(at: i)
         selected = engine.rotulos.indices.contains(i) ? engine.rotulos[i].id : engine.rotulos.last?.id
     }
@@ -128,6 +131,26 @@ struct RotuloEditor: View {
     @State private var playing: Timer?
 
     private var up: Bool { engine.captionsUp.contains(rotulo.id) }
+
+    /// A binding into the caption's own style, which only exists once something in it is changed.
+    private func style<T>(_ path: WritableKeyPath<Rotulo.Style, T>) -> Binding<T> {
+        Binding(get: { rotulo.look[keyPath: path] }, set: { var look = rotulo.look; look[keyPath: path] = $0; rotulo.style = look })
+    }
+
+    /// One of the style's colours as SwiftUI wants it. The background also carries how see-through it is.
+    private func colour(_ path: WritableKeyPath<Rotulo.Style, Int>, alpha: Bool = false) -> Binding<Color> {
+        Binding(get: {
+            let hex = rotulo.look[keyPath: path]
+            return Color(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255, blue: Double(hex & 0xff) / 255,
+                         opacity: alpha ? rotulo.look.backgroundAlpha : 1)
+        }, set: { new in
+            guard let c = NSColor(new).usingColorSpace(.sRGB) else { return }
+            var look = rotulo.look
+            look[keyPath: path] = (Int((c.redComponent * 255).rounded()) << 16) | (Int((c.greenComponent * 255).rounded()) << 8) | Int((c.blueComponent * 255).rounded())
+            if alpha { look.backgroundAlpha = Double(c.alphaComponent) }
+            rotulo.style = look
+        })
+    }
     private var gesture: Gesture { rotulo.gestureName.flatMap(Gesture.init(rawValue:)) ?? Gesture.none }
 
     /// Whatever else answers to the same gesture and would go first: an effect, or a caption listed earlier.
@@ -179,12 +202,36 @@ struct RotuloEditor: View {
                     }
                 }
                 TextField(rotulo.kind.labels.0, text: $rotulo.title, prompt: rotulo.kind == .social ? Text(rotulo.network.example) : nil)
+                if rotulo.kind == .social {
+                    LabeledContent("Icono") {
+                        HStack(spacing: 10) {
+                            Text(rotulo.iconPath == nil ? "Iniciales de la red" : "Tu imagen").foregroundStyle(.secondary)
+                            if rotulo.iconPath != nil { Button("Quitar") { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = nil } }
+                            Button("Elegir imagen…") { if let path = OwnIcon.choose() { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = path } }
+                        }
+                    }
+                }
                 if rotulo.kind.hasSubtitle { TextField(rotulo.kind.labels.1, text: $rotulo.subtitle) }
             }
 
             Section("Aspecto") {
                 Picker("Tema", selection: $rotulo.theme) {
                     ForEach(Rotulo.Theme.allCases) { Text($0.title).tag($0) }
+                }
+                if rotulo.theme == .custom {
+                    // The user's own looks: any colours, any of the letterings, any roundness.
+                    ColorPicker("Fondo", selection: colour(\.background, alpha: true), supportsOpacity: true)
+                    ColorPicker("Texto", selection: colour(\.text), supportsOpacity: false)
+                    ColorPicker("Acento", selection: colour(\.accent), supportsOpacity: false)
+                    Picker("Letra", selection: style(\.lettering)) {
+                        ForEach(Rotulo.Style.Lettering.allCases) { Text($0.title).tag($0) }
+                    }
+                    if rotulo.kind != .card {
+                        LabeledContent("Esquinas") {
+                            Slider(value: style(\.corner), in: 0...1) { Text("Esquinas") } minimumValueLabel: { Image(systemName: "square") } maximumValueLabel: { Image(systemName: "capsule") }
+                                .labelsHidden()
+                        }
+                    }
                 }
                 if rotulo.spot != nil, rotulo.kind != .card {
                     LabeledContent("Posición") {
@@ -271,5 +318,49 @@ struct RotuloEditor: View {
             shown = min(1, p)
             if p >= 1 { timer.invalidate() }
         }
+    }
+}
+
+/// The user's own picture for a social caption, kept as a small PNG in the app's folder.
+enum OwnIcon {
+    private static var folder: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Kawaru/iconos", isDirectory: true)
+    }
+
+    /// Asks for a picture and keeps a copy. Returns where the copy is, or nil if nothing usable was chosen.
+    static func choose() -> String? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .pdf, .svg]
+        panel.allowsMultipleSelection = false
+        panel.message = "Elige el icono para este rótulo: un PNG con fondo transparente es lo que mejor queda."
+        guard panel.runModal() == .OK, let url = panel.url, let image = NSImage(contentsOf: url) else { return nil }
+        // Drawn into a square, whole, so nothing of a wide logo is cut off.
+        let side = 256
+        guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let scale = min(CGFloat(side) / max(1, image.size.width), CGFloat(side) / max(1, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+        image.draw(in: CGRect(x: (CGFloat(side) - size.width) / 2, y: (CGFloat(side) - size.height) / 2, width: size.width, height: size.height))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let made = ctx.makeImage(), let data = NSBitmapImageRep(cgImage: made).representation(using: .png, properties: [:]) else { return nil }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent(UUID().uuidString + ".png")
+        do { try data.write(to: file, options: .atomic) } catch { return nil }
+        return file.path
+    }
+
+    static func copy(of path: String?) -> String? {
+        guard let path else { return nil }
+        let file = folder.appendingPathComponent(UUID().uuidString + ".png")
+        do { try FileManager.default.copyItem(atPath: path, toPath: file.path) } catch { return nil }
+        return file.path
+    }
+
+    /// Only ever deletes inside the app's own icon folder.
+    static func remove(_ path: String?) {
+        guard let path, path.hasPrefix(folder.path) else { return }
+        try? FileManager.default.removeItem(atPath: path)
     }
 }
