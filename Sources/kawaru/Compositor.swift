@@ -167,7 +167,9 @@ final class Compositor {
 
         expired = (look == .confetti && now - (confettiAt ?? now) > Overlays.confettiTime)
             || (look == .breakTime && now - breakAt > Wording.breakTime + Overlays.backTime)
-        guard mix > 0 || cloneMix > 0 || awayMix > 0 || overlaysShowing || burst != nil, let pool else { return frame }
+        // With nothing to draw the camera frame goes out as it came. A caption is something to draw: this used to
+        // leave them out unless an effect happened to be on as well.
+        guard mix > 0 || cloneMix > 0 || awayMix > 0 || overlaysShowing || burst != nil || !captions.isEmpty, let pool else { return frame }
         var out: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(nil, pool, &out)
         guard let out else { return frame }
