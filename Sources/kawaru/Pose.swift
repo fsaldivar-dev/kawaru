@@ -31,6 +31,22 @@ struct HandShape {
 
     init(points: [CGPoint?], centre: CGPoint, palm: CGFloat) { self.points = points; self.centre = centre; self.palm = palm }
 
+    /// Several frames of the same hands averaged into one. Vision's joints jitter from frame to frame, more so
+    /// with fingers half hidden by the face; a recorded position is itself an average, so the live hand is
+    /// compared the same way. `frames` are the last few, each with its hands ordered left to right.
+    static func steadied(_ frames: [[HandShape]]) -> [HandShape] {
+        guard let latest = frames.last, !latest.isEmpty else { return [] }
+        let same = frames.filter { $0.count == latest.count }
+        return latest.indices.map { i in
+            let points: [CGPoint?] = joints.indices.map { j in
+                let known = same.compactMap { $0[i].points[j] }
+                guard known.count * 2 >= same.count else { return nil }
+                return CGPoint(x: known.map(\.x).reduce(0, +) / CGFloat(known.count), y: known.map(\.y).reduce(0, +) / CGFloat(known.count))
+            }
+            return HandShape(points: points, centre: latest[i].centre, palm: latest[i].palm)
+        }
+    }
+
     /// The same hand seen in a mirror: what the other hand looks like doing the same thing.
     var mirrored: HandShape { HandShape(points: points.map { $0.map { CGPoint(x: -$0.x, y: $0.y) } }, centre: centre, palm: palm) }
 
@@ -59,8 +75,28 @@ struct HandShape {
         return worst
     }
 
+    /// The live hand turned and resized about the wrist to lie as close to the template as it can, within
+    /// limits. Nobody holds a hand at exactly the angle they recorded it, and tipping it towards the camera
+    /// shortens the palm everything is measured in; without this, real attempts at a recorded position came
+    /// out two or three times too far to match (seen in the log). The limits keep "fingers up" from passing
+    /// for "fingers sideways".
+    static func fitted(_ template: [CGPoint?], _ live: [CGPoint?]) -> [CGPoint?] {
+        var dot: CGFloat = 0, cross: CGFloat = 0, sizeT: CGFloat = 0, sizeL: CGFloat = 0
+        for (t, l) in zip(template, live) {
+            guard let t, let l else { continue }
+            dot += l.x * t.x + l.y * t.y; cross += l.x * t.y - l.y * t.x
+            sizeT += t.x * t.x + t.y * t.y; sizeL += l.x * l.x + l.y * l.y
+        }
+        guard sizeL > 0, sizeT > 0 else { return live }
+        let turn = max(-0.6, min(0.6, atan2(cross, dot)))               // about 35 degrees either way
+        let scale = max(0.75, min(1.3, (sizeT / sizeL).squareRoot()))
+        let c = cos(turn) * scale, s = sin(turn) * scale
+        return live.map { $0.map { CGPoint(x: $0.x * c - $0.y * s, y: $0.x * s + $0.y * c) } }
+    }
+
     static func fits(_ template: [CGPoint?], _ live: [CGPoint?], tolerance: CGFloat) -> Bool {
-        distance(template, live) < tolerance && worstFinger(template, live) < tolerance * 1.45
+        let live = fitted(template, live)
+        return distance(template, live) < tolerance && worstFinger(template, live) < tolerance * 1.45
     }
 }
 
@@ -78,6 +114,32 @@ struct PoseTemplate: Codable, Equatable {
     func matches(_ live: [HandShape], face: CGRect?, aspect: CGFloat) -> Bool {
         let ordered = live.sorted { $0.centre.x < $1.centre.x }
         return matches(ordered, face, aspect, flip: 1) || matches(ordered.reversed().map(\.mirrored), face, aspect, flip: -1)
+    }
+
+    /// How far the hands are from this position, for the log: joint distance, worst finger, and distance from
+    /// the recorded place by the face (0 when the position is not tied to the face). Nil when the number of
+    /// hands differs. One-hand positions only measure the closest hand.
+    func closeness(_ live: [HandShape], face: CGRect?, aspect: CGFloat) -> (joints: CGFloat, finger: CGFloat, place: CGFloat)? {
+        guard live.count == hands.count, !live.isEmpty else { return nil }
+        var best: (joints: CGFloat, finger: CGFloat, place: CGFloat)?
+        for flip in [CGFloat(1), -1] {
+            let ordered = live.sorted { $0.centre.x < $1.centre.x }
+            let set = flip == 1 ? ordered : ordered.reversed().map(\.mirrored)
+            for (i, hand) in set.enumerated() {
+                let template = shape(hands.count == 2 ? i : 0)
+                var place: CGFloat = 0
+                if hands.count == 1, let faceOffset {
+                    if let face {
+                        let width = face.width * aspect
+                        place = hypot((hand.centre.x - face.midX * aspect) * flip / width - faceOffset[0], (hand.centre.y - face.midY) / width - faceOffset[1])
+                    } else { place = 9 }
+                }
+                let turned = HandShape.fitted(template, hand.points)
+                let found = (joints: HandShape.distance(template, turned), finger: HandShape.worstFinger(template, turned), place: place)
+                if best == nil || found.joints < best!.joints { best = found }
+            }
+        }
+        return best
     }
 
     /// Upper limit on how loose a match may be, whatever was measured while recording. The first real recordings

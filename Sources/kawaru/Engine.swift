@@ -61,6 +61,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     // MARK: Recording a position
 
     /// The positions recorded so far, one per effect at most. Remembered between launches.
+    /// The joints of the hands in view, per hand, in the frame (0...1, y up); nil where Vision is unsure.
+    /// Only filled while recording or practising, to draw over the picture what is being read.
+    @Published private(set) var joints: [[CGPoint?]] = []
     @Published private(set) var poses: [Effect: PoseTemplate] = Engine.savedPoses()
     /// A photo of the user holding each recorded position, to remember it by.
     @Published private(set) var posePhotos: [Effect: NSImage] = Dictionary(uniqueKeysWithValues: Effect.allCases.compactMap { e in PosePhoto.load(e).map { (e, $0) } })
@@ -213,6 +216,11 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var lastHands: [VNHumanHandPoseObservation] = []
     private var handCount = 0, spentVision = 0.0
     private var seenCounts: [Gesture: Int] = [:]
+    private var recent: [[HandShape]] = []
+    private var jointsShown = false
+    /// Per recorded position, this second: frames measured, sums of joint distance, worst finger, place by the
+    /// face and raw (unsteadied) joint distance, and frames that matched. For the log.
+    private var closeness: [Effect: (Int, Double, Double, Double, Double, Int)] = [:]
 
     func start() {
         display.videoGravity = .resizeAspect
@@ -322,7 +330,29 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
         // Recorded positions, compared against what the hands are doing now.
         let shapes = found.compactMap { HandShape($0, aspect: aspect) }
-        func recorded(_ effect: Effect) -> Bool { templates[effect]?.matches(shapes, face: lastFace, aspect: aspect) ?? false }
+        // What is being read, for drawing over the picture while recording or practising.
+        let showJoints = sampling != nil || quiet || practising != nil
+        let dots: [[CGPoint?]] = showJoints ? found.map { hand in
+            let all = (try? hand.recognizedPoints(.all)) ?? [:]
+            return HandShape.joints.map { j in all[j].flatMap { $0.confidence > 0.2 ? $0.location : nil } }
+        } : []
+        if showJoints || jointsShown {
+            jointsShown = showJoints
+            DispatchQueue.main.async { self.joints = dots }
+        }
+        // Recorded positions are compared against the last few frames averaged, not one jittery frame.
+        recent.append(shapes.sorted { $0.centre.x < $1.centre.x })
+        if recent.count > 5 { recent.removeFirst() }
+        let steady = HandShape.steadied(recent)
+        func recorded(_ effect: Effect) -> Bool { templates[effect]?.matches(steady, face: lastFace, aspect: aspect) ?? false }
+        for (effect, gesture) in bindings where gesture == .custom {
+            guard let template = templates[effect], let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
+            let raw = template.closeness(shapes, face: lastFace, aspect: aspect)?.joints ?? .infinity
+            var tally = closeness[effect] ?? (0, 0, 0, 0, 0, 0)
+            tally.0 += 1; tally.1 += Double(now.joints); tally.2 += Double(now.finger); tally.3 += Double(now.place)
+            tally.4 += raw.isFinite ? Double(raw) : 0; tally.5 += recorded(effect) ? 1 : 0
+            closeness[effect] = tally
+        }
 
         if let effect = sampling {
             samples.append((hands: shapes, face: lastFace))
@@ -334,7 +364,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 if let pose { print(String(format: "pose: grabada para %@, %d mano(s), tolerancia %.2f, cara=%@, manos vistas por fotograma: %@", effect.rawValue, pose.hands.count, pose.tolerance, pose.faceOffset == nil ? "no" : "si", handCounts)) }
                 else { print("pose: grabación sin manos suficientes") }
                 fflush(stdout)
-                let photo = pose == nil ? nil : PosePhoto.encode(frame)
+                let photo = pose == nil ? nil : PosePhoto.encode(frame, joints: dots)
                 DispatchQueue.main.async { self.finishRecording(effect, pose, photo: photo) }
             }
         }
@@ -416,6 +446,12 @@ let gestures = seenCounts.map { "\($0.key.rawValue)=\($0.value)" }.sorted().join
             print(String(format: "fps=%d ms=%.1f vision=%.1f manos=%d cara=%@ persona=%.2f modo=%@ gestos[%@]", rate, ms,
                          spentVision / Double(frames) * 1000, handCount, lastFace == nil ? "no" : "si",
                          Double(compositor.personArea), "\(on)", gestures))
+            for (effect, t) in closeness.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+                let n = Double(t.0)
+                print(String(format: "  pose %@: coincide %d/%d, dedos %.2f (sin promediar %.2f), peor dedo %.2f, lugar %.2f, tolerancia %.2f", effect.rawValue,
+                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[effect]?.tolerance ?? 0, PoseTemplate.loosest)))
+            }
+            closeness = [:]
             fflush(stdout)
             DispatchQueue.main.async { self.fps = rate; self.milliseconds = ms }
             frames = 0; spent = 0; windowStart = ended; handCount = 0; spentVision = 0; seenCounts = [:]

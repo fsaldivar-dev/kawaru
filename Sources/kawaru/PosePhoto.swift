@@ -13,9 +13,10 @@ enum PosePhoto {
 
     private static func file(_ effect: Effect) -> URL { folder.appendingPathComponent(effect.rawValue + ".jpg") }
 
-    /// A small JPEG of the camera frame, flipped the way the user saw themselves in the preview.
-    static func encode(_ frame: CVPixelBuffer) -> Data? {
-        let image = CIImage(cvPixelBuffer: frame)
+    /// A small JPEG of the camera frame with the hand's joints drawn on it, flipped the way the user saw themselves in the preview.
+    static func encode(_ frame: CVPixelBuffer, joints: [[CGPoint?]] = []) -> Data? {
+        var image = CIImage(cvPixelBuffer: frame)
+        if let marks = HandMarks.image(joints, size: image.extent.size) { image = marks.composited(over: image) }
         let scale = 640 / image.extent.width
         let small = image.transformed(by: CGAffineTransform(scaleX: -scale, y: scale))
         let placed = small.transformed(by: CGAffineTransform(translationX: -small.extent.minX, y: -small.extent.minY))

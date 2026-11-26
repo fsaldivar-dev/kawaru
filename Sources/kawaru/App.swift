@@ -105,6 +105,7 @@ struct LiveView: View {
                 switch engine.access {
                 case .granted:
                     Preview(layer: engine.display, mirrored: !engine.look.hasText)
+                    if !engine.joints.isEmpty { HandMarksView(hands: engine.joints, mirrored: !engine.look.hasText) }
                     if let effect = engine.recording {
                         RecordingCard(engine: engine, effect: effect)
                     } else if let gesture = engine.practice, engine.countdown == nil {
