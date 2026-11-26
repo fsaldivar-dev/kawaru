@@ -48,6 +48,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
     func nextPractice() {
         let next = practiceQueue.isEmpty ? nil : practiceQueue.removeFirst()
+        if next == nil { refining = false; queue.async { self.teaching = nil } }
         practice = next
         practiceHits = 0
         practiceTip = nil
@@ -73,7 +74,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     @Published private(set) var recordCountdown: Int?
     /// Set when the last recording could not be used.
     @Published var recordProblem: String?
-    static let recordTime = 1.3
+    static let recordTime = 1.8
+
+    /// Every take of each recorded position: the first one and the repetitions that taught its variations.
+    /// A hand matches the position when it matches any of them.
+    private static func savedVariants() -> [Effect: [PoseTemplate]] {
+        var result: [Effect: [PoseTemplate]] = [:]
+        for (effect, first) in savedPoses() {
+            let more = UserDefaults.standard.data(forKey: "poses." + effect.rawValue).flatMap { try? JSONDecoder().decode([PoseTemplate].self, from: $0) }
+            result[effect] = more ?? [first]
+        }
+        return result
+    }
+
+    /// True while the repetitions after a recording are teaching variations of the position.
+    @Published private(set) var refining = false
 
     private static func savedPoses() -> [Effect: PoseTemplate] {
         var result: [Effect: PoseTemplate] = [:]
@@ -92,7 +107,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         recordProblem = nil
         recording = effect
         recordCountdown = 3
-        queue.async { self.quiet = true }   // no effect fires while getting the hands ready
+        // No effect fires while getting the hands ready, and whatever was on goes off: the user has to see themselves.
+        queue.async { self.quiet = true; self.current = .person }
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
             guard self.recording == effect else { timer.invalidate(); return }
             let left = (self.recordCountdown ?? 1) - 1
@@ -124,11 +140,13 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             PosePhoto.delete(effect); posePhotos[effect] = nil   // never show the photo of an older position
         }
         if let data = try? JSONEncoder().encode(pose) { UserDefaults.standard.set(data, forKey: "pose." + effect.rawValue) }
-        let copy = poses
-        queue.async { self.templates = copy }
+        UserDefaults.standard.removeObject(forKey: "poses." + effect.rawValue)
+        queue.async { self.templates[effect] = [pose]; self.teaching = effect; self.taught = [] }
         commands[effect] = .custom
-        // Straight into practice, to find out at once whether it reads well.
+        // Straight into three repetitions. They do not test the first take: each one is kept as a variation,
+        // so the position is learnt the way the user really makes it.
         practiceEffect = effect
+        refining = true
         startPractice([.custom])
     }
 
@@ -204,7 +222,10 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var practiceMeter = HoldMeter()
     private var hits = 0
     private var shownTip: String?
-    private var templates = Engine.savedPoses()
+    private var templates = Engine.savedVariants()
+    /// The effect whose repetitions are being kept as variations, and the frames of the one in progress.
+    private var teaching: Effect?
+    private var taught: [(hands: [HandShape], face: CGRect?)] = []
     private var practisingEffect: Effect?
     private var sampling: Effect?
     private var quiet = false
@@ -313,7 +334,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         // The face is looked for when a command is read against it, when a recorded position is tied to it, and
         // always while recording, to find out whether the hand is by the face.
         let usesFace = sampling != nil || practising?.needsFace ?? bindings.values.contains(where: \.needsFace)
-            || bindings.contains { $0.value == .custom && templates[$0.key]?.faceOffset != nil }
+            || bindings.contains { $0.value == .custom && (templates[$0.key] ?? []).contains { $0.faceOffset != nil } }
         let needFace = needHands && usesFace
         var requests: [VNRequest] = []
         if needHands { requests.append(hands) }
@@ -344,9 +365,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         recent.append(shapes.sorted { $0.centre.x < $1.centre.x })
         if recent.count > 5 { recent.removeFirst() }
         let steady = HandShape.steadied(recent)
-        func recorded(_ effect: Effect) -> Bool { templates[effect]?.matches(steady, face: lastFace, aspect: aspect) ?? false }
+        func recorded(_ effect: Effect) -> Bool { (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect) } }
         for (effect, gesture) in bindings where gesture == .custom {
-            guard let template = templates[effect], let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
+            guard let template = templates[effect]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
             let raw = template.closeness(shapes, face: lastFace, aspect: aspect)?.joints ?? .infinity
             var tally = closeness[effect] ?? (0, 0, 0, 0, 0, 0)
             tally.0 += 1; tally.1 += Double(now.joints); tally.2 += Double(now.finger); tally.3 += Double(now.place)
@@ -374,8 +395,23 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             // Recording, or about to: nothing fires.
         } else if let target = practising {
             // Practising: the gesture fills its meter and is counted, and nothing else happens.
-            let present = target == .custom ? (practisingEffect.map(recorded) ?? false) : seen.contains(target)
+            var present = target == .custom ? (practisingEffect.map(recorded) ?? false) : seen.contains(target)
+            if let effect = teaching, effect == practisingEffect, let first = templates[effect]?.first {
+                // Teaching variations: anything roughly like the first take counts, and its frames are kept.
+                present = first.resembles(shapes, aspect: aspect)
+                if present { taught.append((hands: shapes, face: lastFace)) } else if practiceMeter.progress == 0 { taught = [] }
+            }
             if practiceMeter.update(present: present, now: began) {
+                if let effect = teaching, effect == practisingEffect {
+                    if let variant = PoseTemplate.make(from: taught, aspect: aspect, atLeast: 6), variant.hands.count == templates[effect]?.first?.hands.count {
+                        templates[effect]?.append(variant)
+                        let all = templates[effect] ?? []
+                        print(String(format: "pose: variante %d para %@, tolerancia %.2f", all.count - 1, effect.rawValue, variant.tolerance)); fflush(stdout)
+                        if let data = try? JSONEncoder().encode(all) { UserDefaults.standard.set(data, forKey: "poses." + effect.rawValue) }
+                    }
+                    taught = []
+                    if hits + 1 >= Engine.practiceGoal { teaching = nil }
+                }
                 hits += 1
                 let count = hits
                 DispatchQueue.main.async {
@@ -449,7 +485,7 @@ let gestures = seenCounts.map { "\($0.key.rawValue)=\($0.value)" }.sorted().join
             for (effect, t) in closeness.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
                 let n = Double(t.0)
                 print(String(format: "  pose %@: coincide %d/%d, dedos %.2f (sin promediar %.2f), peor dedo %.2f, lugar %.2f, tolerancia %.2f", effect.rawValue,
-                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[effect]?.tolerance ?? 0, PoseTemplate.loosest)))
+                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[effect]?.first?.tolerance ?? 0, PoseTemplate.loosest)))
             }
             closeness = [:]
             fflush(stdout)

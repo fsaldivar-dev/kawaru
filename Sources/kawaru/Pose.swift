@@ -142,6 +142,14 @@ struct PoseTemplate: Codable, Equatable {
         return best
     }
 
+    /// Roughly this position: the same number of hands in something like the same shape, wherever they are.
+    /// Used while the user repeats a position to teach its variations, where asking for an exact match would
+    /// only teach the first take again.
+    func resembles(_ live: [HandShape], aspect: CGFloat) -> Bool {
+        guard let near = closeness(live, face: nil, aspect: aspect) else { return false }
+        return near.joints < 0.6
+    }
+
     /// Upper limit on how loose a match may be, whatever was measured while recording. The first real recordings
     /// all came out at the old limit of 0.5, and at that a one-hand position passed for almost any hand.
     static let loosest = 0.34
@@ -174,12 +182,12 @@ struct PoseTemplate: Codable, Equatable {
 
     /// Builds a template from about a second of frames with the position held still. Nil when the hands were
     /// not seen steadily enough.
-    static func make(from samples: [(hands: [HandShape], face: CGRect?)], aspect: CGFloat) -> PoseTemplate? {
+    static func make(from samples: [(hands: [HandShape], face: CGRect?)], aspect: CGFloat, atLeast: Int = 8) -> PoseTemplate? {
         let seen = samples.filter { !$0.hands.isEmpty }
-        guard seen.count >= 12 else { return nil }
+        guard seen.count >= atLeast else { return nil }
         let count = seen.filter { $0.hands.count >= 2 }.count * 2 > seen.count ? 2 : 1
         let used = seen.filter { $0.hands.count >= count }.map { (hands: Array($0.hands.sorted { $0.centre.x < $1.centre.x }.prefix(count)), face: $0.face) }
-        guard used.count >= 12 else { return nil }
+        guard used.count >= atLeast else { return nil }
 
         var shapes: [[CGPoint?]] = []
         for i in 0..<count {

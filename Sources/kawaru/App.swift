@@ -332,8 +332,8 @@ struct PracticeCard: View {
                 Text(gesture.symbol).font(.system(size: 46)).frame(minWidth: 64)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(done ? "¡Listo! \(gesture.title)" : "Practica: \(gesture.title)").font(.headline)
-                Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(engine.refining ? (done ? "¡Listo! Posición aprendida" : "Repítela para afinarla") : (done ? "¡Listo! \(gesture.title)" : "Practica: \(gesture.title)")).font(.headline)
+                Text(engine.refining ? "Baja las manos y vuelve a hacer la posición, tal como te salga. Cada repetición enseña una variante." : gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if !done, let tip = engine.practiceTip {
                     Label(tip, systemImage: "lightbulb").font(.callout.weight(.medium)).foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
