@@ -258,6 +258,15 @@ struct CameraView: View {
     }
 }
 
+/// The app's icon in its own colours. `NSApp.applicationIconImage` comes back restyled by the system (grey
+/// glass when the Mac's icon style is Clear or Tinted), which is right for the Dock but not for our own pages.
+enum AppIcon {
+    static let image: NSImage = {
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: url) { return icon }
+        return NSApp.applicationIconImage
+    }()
+}
+
 /// Who made this, and where to find them.
 struct AboutView: View {
     var tour: () -> Void = {}
@@ -266,7 +275,7 @@ struct AboutView: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 128, height: 128)
+            Image(nsImage: AppIcon.image).resizable().frame(width: 128, height: 128)
             Text("Kawaru").font(.system(size: 34, weight: .bold, design: .rounded)).padding(.top, 10)
             Text("Versión \(version)").font(.callout).foregroundStyle(.secondary).padding(.top, 2)
             Text("Efectos para tus videollamadas, con un gesto de la mano.")

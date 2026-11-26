@@ -119,7 +119,7 @@ struct Onboarding: View {
         VStack(alignment: .leading, spacing: 16) {
             switch step {
             case 0:
-                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 72, height: 72)
+                Image(nsImage: AppIcon.image).resizable().frame(width: 72, height: 72)
                 title("Tus videollamadas, con un gesto")
                 text("Haz una seña con la mano y Kawaru pone un efecto sobre tu cámara: confeti para celebrar, un cartel cuando te ausentas, un globo para pedir la palabra.")
                 text("Funciona en Meet, Zoom, Teams y cualquier app de video.")
