@@ -111,10 +111,18 @@ struct PoseTemplate: Codable, Equatable {
     private func shape(_ i: Int) -> [CGPoint?] { hands[i].map { $0.map { CGPoint(x: $0[0], y: $0[1]) } } }
 
     /// Does what is in front of the camera now match? Either hand may be used: the mirror image counts too.
-    func matches(_ live: [HandShape], face: CGRect?, aspect: CGFloat) -> Bool {
+    /// `slack` above 1 loosens the match: used to hold on to a position that was matching a moment ago, so a
+    /// frame or two of jitter does not drop it.
+    func matches(_ live: [HandShape], face: CGRect?, aspect: CGFloat, slack: CGFloat = 1) -> Bool {
         let ordered = live.sorted { $0.centre.x < $1.centre.x }
-        return matches(ordered, face, aspect, flip: 1) || matches(ordered.reversed().map(\.mirrored), face, aspect, flip: -1)
+        return matches(ordered, face, aspect, flip: 1, slack: slack) || matches(ordered.reversed().map(\.mirrored), face, aspect, flip: -1, slack: slack)
     }
+
+    /// How strict a match is: what was measured while recording, kept between a floor and a ceiling. A very
+    /// steady first take used to come out at 0.20, which the same person rarely met again (seen in the log:
+    /// real attempts sit near 0.2 and other positions from 0.4 up, so 0.30 to 0.36 separates them).
+    var strictness: Double { min(max(tolerance, Self.tightest), Self.loosest) }
+    static let tightest = 0.30
 
     /// How far the hands are from this position, for the log: joint distance, worst finger, and distance from
     /// the recorded place by the face (0 when the position is not tied to the face). Nil when the number of
@@ -152,15 +160,15 @@ struct PoseTemplate: Codable, Equatable {
 
     /// Upper limit on how loose a match may be, whatever was measured while recording. The first real recordings
     /// all came out at the old limit of 0.5, and at that a one-hand position passed for almost any hand.
-    static let loosest = 0.34
+    static let loosest = 0.36
 
     /// In words, what was recorded: for showing next to the command.
     var summary: String {
         hands.count == 2 ? "Dos manos" : (faceOffset != nil ? "Una mano, junto a la cara" : "Una mano")
     }
 
-    private func matches(_ live: [HandShape], _ face: CGRect?, _ aspect: CGFloat, flip: CGFloat) -> Bool {
-        let tolerance = CGFloat(min(self.tolerance, Self.loosest))
+    private func matches(_ live: [HandShape], _ face: CGRect?, _ aspect: CGFloat, flip: CGFloat, slack: CGFloat) -> Bool {
+        let tolerance = CGFloat(strictness) * slack
         // The number of hands is part of the position: one hand recorded means one hand showing, so a one-hand
         // position does not go off in the middle of a two-hand one.
         guard live.count == hands.count else { return false }
@@ -168,7 +176,7 @@ struct PoseTemplate: Codable, Equatable {
             guard let gap else { return false }
             let fit = HandShape.fits(shape(0), live[0].points, tolerance: tolerance * 1.15) && HandShape.fits(shape(1), live[1].points, tolerance: tolerance * 1.15)
             let dx = (live[1].centre.x - live[0].centre.x) * flip / live[0].palm, dy = (live[1].centre.y - live[0].centre.y) / live[0].palm
-            return fit && hypot(dx - gap[0], dy - gap[1]) < 1.2
+            return fit && hypot(dx - gap[0], dy - gap[1]) < 1.2 * slack
         }
         return live.contains { hand in
             guard HandShape.fits(shape(0), hand.points, tolerance: tolerance) else { return false }
@@ -176,7 +184,7 @@ struct PoseTemplate: Codable, Equatable {
             guard let face else { return false }
             let width = face.width * aspect
             let dx = (hand.centre.x - face.midX * aspect) * flip / width, dy = (hand.centre.y - face.midY) / width
-            return hypot(dx - faceOffset[0], dy - faceOffset[1]) < 0.9
+            return hypot(dx - faceOffset[0], dy - faceOffset[1]) < 0.9 * slack
         }
     }
 

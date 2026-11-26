@@ -299,7 +299,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var jointsShown = false
     /// Per recorded position, this second: frames measured, sums of joint distance, worst finger, place by the
     /// face and raw (unsteadied) joint distance, and frames that matched. For the log.
-    private var closeness: [Effect: (Int, Double, Double, Double, Double, Int)] = [:]
+    private var closeness: [Trigger: (Int, Double, Double, Double, Double, Int)] = [:]
+    private var lastMatch: [Trigger: Double] = [:]
+    private var matchedThisFrame: [Trigger: Bool] = [:]
 
     /// Hand gestures start effects. Off from the menu bar when the hands are busy with something else.
     @Published var gesturesOn = UserDefaults.standard.object(forKey: "gesturesOn") as? Bool ?? true {
@@ -515,13 +517,27 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         recent.append(shapes.sorted { $0.centre.x < $1.centre.x })
         if recent.count > 5 { recent.removeFirst() }
         let steady = HandShape.steadied(recent)
-        func recorded(_ effect: Trigger) -> Bool { (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect) } }
-        for (effect, gesture) in bindings where gesture == .custom {
-            guard let template = templates[.effect(effect)]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
+        // A position that matched a moment ago is held on to a little more loosely, so jitter does not drop it
+        // half way through the half second it has to be held.
+        func recorded(_ effect: Trigger) -> Bool {
+            if let known = matchedThisFrame[effect] { return known }
+            let slack: CGFloat = began - (lastMatch[effect] ?? 0) < 0.35 ? 1.3 : 1
+            let found = (templates[effect] ?? []).contains { $0.matches(steady, face: lastFace, aspect: aspect, slack: slack) }
+            if found { lastMatch[effect] = began }
+            matchedThisFrame[effect] = found
+            return found
+        }
+        matchedThisFrame = [:]
+        /// The hands are still roughly in this recorded position, wherever they are in the picture.
+        func near(_ effect: Trigger) -> Bool { (templates[effect] ?? []).contains { $0.resembles(steady, aspect: aspect) } }
+        var customs = bindings.filter { $0.value == .custom }.map { Trigger.effect($0.key) }
+        customs += library.values.filter { $0.gestureName == Gesture.custom.rawValue }.map { Trigger.caption($0.id) }
+        for effect in customs {
+            guard let template = templates[effect]?.first, let now = template.closeness(steady, face: lastFace, aspect: aspect), now.joints.isFinite else { continue }
             let raw = template.closeness(shapes, face: lastFace, aspect: aspect)?.joints ?? .infinity
             var tally = closeness[effect] ?? (0, 0, 0, 0, 0, 0)
             tally.0 += 1; tally.1 += Double(now.joints); tally.2 += Double(now.finger); tally.3 += Double(now.place)
-            tally.4 += raw.isFinite ? Double(raw) : 0; tally.5 += recorded(.effect(effect)) ? 1 : 0
+            tally.4 += raw.isFinite ? Double(raw) : 0; tally.5 += recorded(effect) ? 1 : 0
             closeness[effect] = tally
         }
 
@@ -585,7 +601,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 let gesture = bindings[effect] ?? .none
                 let present = gesture == .custom ? recorded(.effect(effect)) : (gesture != .none && seen.contains(gesture))
                 var meter = meters[effect] ?? HoldMeter()
-                let fired = firedEffect == nil && meter.update(present: present, now: began)
+                let fired = firedEffect == nil && meter.update(present: present, near: gesture == .custom ? near(.effect(effect)) : nil, now: began)
                 meters[effect] = meter
                 if meter.progress > progress { progress = meter.progress; held = gesture }
                 if gesture == .custom, present { seenCounts[.custom, default: 0] += 1 }
@@ -598,7 +614,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 guard let gesture = rotulo.gestureName.flatMap(Gesture.init(rawValue:)), gesture != .none else { captionMeters[id] = nil; continue }
                 var meter = captionMeters[id] ?? HoldMeter()
                 let present = gesture == .custom ? recorded(.caption(id)) : seen.contains(gesture)
-                let fired = firedEffect == nil && firedCaption == nil && meter.update(present: present, now: began)
+                let fired = firedEffect == nil && firedCaption == nil && meter.update(present: present, near: gesture == .custom ? near(.caption(id)) : nil, now: began)
                 captionMeters[id] = meter
                 if meter.progress > progress { progress = meter.progress; held = gesture }
                 if fired { firedCaption = id }
@@ -663,10 +679,10 @@ let gestures = seenCounts.map { "\($0.key.rawValue)=\($0.value)" }.sorted().join
             print(String(format: "fps=%d ms=%.1f vision=%.1f manos=%d cara=%@ persona=%.2f modo=%@ gestos[%@]", rate, ms,
                          spentVision / Double(frames) * 1000, handCount, lastFace == nil ? "no" : "si",
                          Double(compositor.personArea), "\(on)", gestures))
-            for (effect, t) in closeness.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            for (effect, t) in closeness.sorted(by: { $0.key.key < $1.key.key }) {
                 let n = Double(t.0)
-                print(String(format: "  pose %@: coincide %d/%d, dedos %.2f (sin promediar %.2f), peor dedo %.2f, lugar %.2f, tolerancia %.2f", effect.rawValue,
-                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, min(templates[.effect(effect)]?.first?.tolerance ?? 0, PoseTemplate.loosest)))
+                print(String(format: "  pose %@: coincide %d/%d, dedos %.2f (sin promediar %.2f), peor dedo %.2f, lugar %.2f, tolerancia %.2f", String(effect.key.prefix(18)),
+                             t.5, t.0, t.1 / n, t.4 / n, t.2 / n, t.3 / n, templates[effect]?.first?.strictness ?? 0))
             }
             closeness = [:]
             fflush(stdout)

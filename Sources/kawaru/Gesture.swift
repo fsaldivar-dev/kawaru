@@ -126,11 +126,13 @@ struct HoldMeter {
     /// whose positions overlap do not go off one after the other.
     mutating func standDown(now: Double) { armed = false; meter = 0; lastSeen = now }
 
-    /// Returns true on the frame it fires.
-    mutating func update(present: Bool, now: Double) -> Bool {
+    /// Returns true on the frame it fires. `near` is a looser reading of the same position: while the hands
+    /// are still roughly there the gesture has not been let go, even if it stopped matching exactly, so it
+    /// cannot fire a second time and undo itself.
+    mutating func update(present: Bool, near: Bool? = nil, now: Double) -> Bool {
         let dt = last == 0 ? 0 : min(0.1, now - last)
         last = now
-        if present { lastSeen = now }
+        if present || near == true { lastSeen = now }
         meter = present ? min(Self.holdTime, meter + dt) : max(0, meter - dt * 0.5)
         if armed {
             if meter >= Self.holdTime { armed = false; meter = 0; return true }
