@@ -168,5 +168,10 @@ case "${1:-}" in
     pkill -x kawaru 2>/dev/null || true
     # Copied over the old one, never deleted first: removing the app makes macOS uninstall its camera extension.
     ditto "$APP" /Applications/Kawaru.app
+    # Only the installed copy may answer to Kawaru's identifier. With the build copy registered as well, the
+    # system picked whichever it liked for the app's icon (the camera menu showed a blank one).
+    LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+    "$LSREGISTER" -u "$PWD/$APP" >/dev/null 2>&1 || true
+    "$LSREGISTER" -f /Applications/Kawaru.app >/dev/null 2>&1 || true
     echo "OK  /Applications/Kawaru.app" ;;
 esac

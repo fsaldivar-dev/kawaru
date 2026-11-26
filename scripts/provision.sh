@@ -48,5 +48,9 @@ YML
 xcodebuild -project "$DIR/KawaruProvision.xcodeproj" -scheme KawaruProvision -configuration Debug \
   -derivedDataPath "$DIR/derived" -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
   DEVELOPMENT_TEAM="$TEAM" build | grep -E 'error|warning: .*[Pp]rovision|BUILD' || true
+# The throwaway app shares Kawaru's identifier and has no icon: left registered, the system shows its blank icon
+# for Kawaru. Take it out of the register before deleting it.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -u "$DIR/derived/Build/Products/Debug/KawaruProvision.app" >/dev/null 2>&1 || true
 rm -rf "$DIR"
 echo "Listo. Ahora: scripts/build.sh --install"
