@@ -24,7 +24,7 @@ struct RotulosView: View {
                     } label: {
                         VStack(spacing: 8) {
                             Image(systemName: "plus").font(.system(size: 26, weight: .light))
-                            Text("Nuevo rótulo").font(.callout)
+                            Text(tr("Nuevo rótulo")).font(.callout)
                         }
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, minHeight: 150)
@@ -47,7 +47,7 @@ struct RotulosView: View {
                 } else {
                     VStack(spacing: 10) {
                         Image(systemName: "textformat").font(.system(size: 34, weight: .light))
-                        Text("Crea tu primer rótulo con «Nuevo rótulo».").multilineTextAlignment(.center)
+                        Text(tr("Crea tu primer rótulo con «Nuevo rótulo».")).multilineTextAlignment(.center)
                     }
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -99,7 +99,7 @@ struct RotuloCard: View {
                 }
                 Spacer(minLength: 6)
                 if up {
-                    Text("Al aire").font(.caption.weight(.semibold)).foregroundStyle(.green)
+                    Text(tr("Al aire")).font(.caption.weight(.semibold)).foregroundStyle(.green)
                         .padding(.horizontal, 7).padding(.vertical, 2).background(.green.opacity(0.14), in: Capsule())
                 } else if number <= 9 {
                     Text("⌃⌥⇧\(number)").font(.callout.monospaced()).foregroundStyle(.tertiary)
@@ -167,7 +167,7 @@ struct RotuloEditor: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let image = Rotulos.preview(rotulo, width: 960, shown: shown) {
                         PreviewImage(image: image).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .accessibilityLabel("Vista previa del rótulo")
+                            .accessibilityLabel(tr("Vista previa del rótulo"))
                             .overlay(GeometryReader { proxy in
                                 // Drag anywhere on the picture to put the caption there.
                                 Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 0).onChanged { drag in
@@ -178,127 +178,127 @@ struct RotuloEditor: View {
                             })
                     }
                     if rotulo.kind != .card {
-                        Text("Arrastra sobre la imagen para colocar el rótulo donde quieras.").font(.caption).foregroundStyle(.secondary)
+                        Text(tr("Arrastra sobre la imagen para colocar el rótulo donde quieras.")).font(.caption).foregroundStyle(.secondary)
                     }
                     HStack {
-                        Button(up ? "Quitar" : "Poner en vivo") {
+                        Button(up ? tr("Quitar") : tr("Poner en vivo")) {
                             engine.toggle(rotulo)
                             if !up { section = .live }
                         }
                         .buttonStyle(.borderedProminent)
-                        Button("Ver animación", action: play)
+                        Button(tr("Ver animación"), action: play)
                     }
                 }
                 .padding(.vertical, 4)
             }
 
-            Section("Texto") {
-                Picker("Tipo", selection: Binding(get: { rotulo.kind }, set: { rotulo.become($0) })) {
+            Section(tr("Texto")) {
+                Picker(tr("Tipo"), selection: Binding(get: { rotulo.kind }, set: { rotulo.become($0) })) {
                     ForEach(Rotulo.Kind.allCases) { Text($0.title).tag($0) }
                 }
                 if rotulo.kind == .social {
-                    Picker("Red", selection: Binding(get: { rotulo.network }, set: { rotulo.networkName = $0.rawValue })) {
+                    Picker(tr("Red"), selection: Binding(get: { rotulo.network }, set: { rotulo.networkName = $0.rawValue })) {
                         ForEach(Rotulo.Network.allCases) { Text($0.title).tag($0) }
                     }
                 }
                 TextField(rotulo.kind.labels.0, text: $rotulo.title, prompt: rotulo.kind == .social ? Text(rotulo.network.example) : nil)
                 if rotulo.kind == .social {
-                    LabeledContent("Icono") {
+                    LabeledContent(tr("Icono")) {
                         HStack(spacing: 10) {
-                            Text(rotulo.iconPath == nil ? "Logo de la red" : "Tu imagen").foregroundStyle(.secondary)
-                            if rotulo.iconPath != nil { Button("Quitar") { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = nil } }
-                            Button("Elegir imagen…") { if let path = OwnIcon.choose() { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = path } }
+                            Text(rotulo.iconPath == nil ? tr("Logo de la red") : tr("Tu imagen")).foregroundStyle(.secondary)
+                            if rotulo.iconPath != nil { Button(tr("Quitar")) { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = nil } }
+                            Button(tr("Elegir imagen…")) { if let path = OwnIcon.choose() { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = path } }
                         }
                     }
                 }
                 if rotulo.kind.hasSubtitle { TextField(rotulo.kind.labels.1, text: $rotulo.subtitle) }
             }
 
-            Section("Aspecto") {
-                Picker("Tema", selection: $rotulo.theme) {
+            Section(tr("Aspecto")) {
+                Picker(tr("Tema"), selection: $rotulo.theme) {
                     ForEach(Rotulo.Theme.allCases) { Text($0.title).tag($0) }
                 }
                 if rotulo.theme == .custom {
                     // The user's own looks: any colours, any of the letterings, any roundness.
-                    ColorPicker("Fondo", selection: colour(\.background, alpha: true), supportsOpacity: true)
-                    ColorPicker("Texto", selection: colour(\.text), supportsOpacity: false)
-                    ColorPicker("Acento", selection: colour(\.accent), supportsOpacity: false)
-                    Picker("Letra", selection: style(\.lettering)) {
+                    ColorPicker(tr("Fondo"), selection: colour(\.background, alpha: true), supportsOpacity: true)
+                    ColorPicker(tr("Texto"), selection: colour(\.text), supportsOpacity: false)
+                    ColorPicker(tr("Acento"), selection: colour(\.accent), supportsOpacity: false)
+                    Picker(tr("Letra"), selection: style(\.lettering)) {
                         ForEach(Rotulo.Style.Lettering.allCases) { Text($0.title).tag($0) }
                     }
                     if rotulo.kind != .card {
-                        LabeledContent("Esquinas") {
-                            Slider(value: style(\.corner), in: 0...1) { Text("Esquinas") } minimumValueLabel: { Image(systemName: "square") } maximumValueLabel: { Image(systemName: "capsule") }
+                        LabeledContent(tr("Esquinas")) {
+                            Slider(value: style(\.corner), in: 0...1) { Text(tr("Esquinas")) } minimumValueLabel: { Image(systemName: "square") } maximumValueLabel: { Image(systemName: "capsule") }
                                 .labelsHidden()
                         }
                     }
                 }
                 if rotulo.spot != nil, rotulo.kind != .card {
-                    LabeledContent("Posición") {
+                    LabeledContent(tr("Posición")) {
                         HStack(spacing: 10) {
-                            Text("Colocado a mano").foregroundStyle(.secondary)
-                            Button("Restablecer") { rotulo.spot = nil }
+                            Text(tr("Colocado a mano")).foregroundStyle(.secondary)
+                            Button(tr("Restablecer")) { rotulo.spot = nil }
                         }
                     }
                 } else if !rotulo.kind.places.isEmpty {
-                    Picker("Posición", selection: $rotulo.place) {
+                    Picker(tr("Posición"), selection: $rotulo.place) {
                         ForEach(rotulo.kind.places) { Text($0.title).tag($0) }
                     }
                 }
-                LabeledContent("Tamaño") {
-                    Slider(value: $rotulo.scale, in: 0.7...1.6) { Text("Tamaño") } minimumValueLabel: { Text("A").font(.caption) } maximumValueLabel: { Text("A").font(.title3) }
+                LabeledContent(tr("Tamaño")) {
+                    Slider(value: $rotulo.scale, in: 0.7...1.6) { Text(tr("Tamaño")) } minimumValueLabel: { Text("A").font(.caption) } maximumValueLabel: { Text("A").font(.title3) }
                         .labelsHidden()
                 }
             }
 
-            Section("Animación") {
-                Picker("Entrada", selection: $rotulo.entrance) {
+            Section(tr("Animación")) {
+                Picker(tr("Entrada"), selection: $rotulo.entrance) {
                     ForEach(Rotulo.Entrance.allCases) { Text($0.title).tag($0) }
                 }
-                Picker("Se queda", selection: $rotulo.seconds) {
-                    Text("Hasta que lo quite").tag(0.0)
-                    Text("5 segundos").tag(5.0)
-                    Text("10 segundos").tag(10.0)
-                    Text("30 segundos").tag(30.0)
-                    Text("1 minuto").tag(60.0)
+                Picker(tr("Se queda"), selection: $rotulo.seconds) {
+                    Text(tr("Hasta que lo quite")).tag(0.0)
+                    Text(tr("5 segundos")).tag(5.0)
+                    Text(tr("10 segundos")).tag(10.0)
+                    Text(tr("30 segundos")).tag(30.0)
+                    Text(tr("1 minuto")).tag(60.0)
                 }
             }
 
-            Section("Cómo se activa") {
-                Picker("Posición de manos", selection: Binding(get: { gesture }, set: { rotulo.gestureName = $0 == Gesture.none ? nil : $0.rawValue })) {
+            Section(tr("Cómo se activa")) {
+                Picker(tr("Posición de manos"), selection: Binding(get: { gesture }, set: { rotulo.gestureName = $0 == Gesture.none ? nil : $0.rawValue })) {
                     // The recorded one is offered only once there is a recording for this caption.
                     ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[.caption(rotulo.id)] != nil }) { Text($0.title).tag($0) }
                 }
                 if gesture == .custom, let photo = engine.posePhotos[.caption(rotulo.id)] {
                     Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .accessibilityLabel("Foto de ti haciendo la posición grabada")
+                        .accessibilityLabel(tr("Foto de ti haciendo la posición grabada"))
                 } else if gesture != Gesture.none {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Text(gesture.symbol).font(.system(size: 26))
                         Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                LabeledContent(engine.poses[.caption(rotulo.id)].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
-                    Button(engine.poses[.caption(rotulo.id)] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: .caption(rotulo.id)) }
+                LabeledContent(engine.poses[.caption(rotulo.id)].map { tr("Tu posición: %@", $0.summary.lowercased()) } ?? tr("Tu propia posición")) {
+                    Button(engine.poses[.caption(rotulo.id)] == nil ? tr("Grabar…") : tr("Volver a grabar…")) { engine.startRecording(for: .caption(rotulo.id)) }
                 }
                 if gesture != Gesture.none {
-                    Button("Practicar el gesto") { engine.startPractice(for: rotulo) }
+                    Button(tr("Practicar el gesto")) { engine.startPractice(for: rotulo) }
                 }
                 if let clash {
-                    Label(gesture == .custom ? "Tu posición se parece demasiado a la de «\(clash)»: Kawaru no las distingue. Graba una distinta." : "«\(clash)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
+                    Label(gesture == .custom ? tr("Tu posición se parece demasiado a la de «%@»: Kawaru no las distingue. Graba una distinta.", clash) : tr("«%@» usa la misma posición: se activará ese y no este.", clash), systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
                 if number <= 9 {
-                    LabeledContent("Atajo de teclado") { Text("⌃⌥⇧\(number)").font(.body.monospaced()).foregroundStyle(.secondary) }
+                    LabeledContent(tr("Atajo de teclado")) { Text("⌃⌥⇧\(number)").font(.body.monospaced()).foregroundStyle(.secondary) }
                 }
             }
 
             Section {
                 HStack {
-                    Button("Duplicar", action: duplicate)
+                    Button(tr("Duplicar"), action: duplicate)
                     Spacer()
-                    Button("Eliminar", role: .destructive, action: delete)
+                    Button(tr("Eliminar"), role: .destructive, action: delete)
                 }
             }
         }
@@ -332,7 +332,7 @@ enum OwnIcon {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .pdf, .svg]
         panel.allowsMultipleSelection = false
-        panel.message = "Elige el icono para este rótulo: un PNG con fondo transparente es lo que mejor queda."
+        panel.message = tr("Elige el icono para este rótulo: un PNG con fondo transparente es lo que mejor queda.")
         guard panel.runModal() == .OK, let url = panel.url, let image = NSImage(contentsOf: url) else { return nil }
         // Drawn into a square, whole, so nothing of a wide logo is cut off.
         let side = 256

@@ -9,14 +9,14 @@ enum Gesture: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .none: "Ninguno"
-        case .browFingers: "Dos dedos en la frente"
-        case .salute: "Saludo militar"
-        case .twoFingers: "Dos dedos arriba"
-        case .openPalm: "Palma abierta"
-        case .thumbsUp: "Pulgar arriba"
-        case .seal: "Sello a dos manos"
-        case .custom: "Posición grabada"
+        case .none: tr("Ninguno")
+        case .browFingers: tr("Dos dedos en la frente")
+        case .salute: tr("Saludo militar")
+        case .twoFingers: tr("Dos dedos arriba")
+        case .openPalm: tr("Palma abierta")
+        case .thumbsUp: tr("Pulgar arriba")
+        case .seal: tr("Sello a dos manos")
+        case .custom: tr("Posición grabada")
         }
     }
 
@@ -39,14 +39,14 @@ enum Gesture: String, CaseIterable, Identifiable {
 
     var hint: String {
         switch self {
-        case .none: "Este efecto no se activa con las manos."
-        case .browFingers: "Índice y medio juntos tocando la frente o la sien; los demás dedos doblados."
-        case .salute: "La mano extendida junto a la frente, como un saludo de general."
-        case .twoFingers: "Índice y medio juntos hacia arriba; los demás dedos doblados."
-        case .openPalm: "La mano abierta hacia la cámara, con los cinco dedos separados y hacia arriba."
-        case .thumbsUp: "El puño cerrado con el pulgar hacia arriba."
-        case .seal: "Las dos manos juntas frente al pecho, con los dedos hacia arriba. Es el más difícil de leer."
-        case .custom: "La posición de manos que grabaste para este efecto."
+        case .none: tr("Este efecto no se activa con las manos.")
+        case .browFingers: tr("Índice y medio juntos tocando la frente o la sien; los demás dedos doblados.")
+        case .salute: tr("La mano extendida junto a la frente, como un saludo de general.")
+        case .twoFingers: tr("Índice y medio juntos hacia arriba; los demás dedos doblados.")
+        case .openPalm: tr("La mano abierta hacia la cámara, con los cinco dedos separados y hacia arriba.")
+        case .thumbsUp: tr("El puño cerrado con el pulgar hacia arriba.")
+        case .seal: tr("Las dos manos juntas frente al pecho, con los dedos hacia arriba. Es el más difícil de leer.")
+        case .custom: tr("La posición de manos que grabaste para este efecto.")
         }
     }
 }
@@ -72,25 +72,25 @@ enum Effect: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .substitution: "Jutsu de sustitución"
-        case .clones: "Clones de sombra"
-        case .away: "Cartel de ausencia"
-        case .question: "Globo de pregunta"
-        case .confetti: "Confeti"
-        case .breakTime: "Descanso"
-        case .spotlight: "Foco"
+        case .substitution: tr("Jutsu de sustitución")
+        case .clones: tr("Clones de sombra")
+        case .away: tr("Cartel de ausencia")
+        case .question: tr("Globo de pregunta")
+        case .confetti: tr("Confeti")
+        case .breakTime: tr("Descanso")
+        case .spotlight: tr("Foco")
         }
     }
 
     var detail: String {
         switch self {
-        case .substitution: "Desapareces en una nube de humo y queda un tronco que cae."
-        case .clones: "Aparecen copias tuyas a los lados, que se mueven contigo."
-        case .away: "Tapa la imagen con un cartel de madera mientras no estás."
-        case .question: "Un globo de diálogo sobre tu imagen, para pedir la palabra sin interrumpir."
-        case .confetti: "Lluvia de confeti y una palabra de ánimo durante unos segundos. Se quita solo."
-        case .breakTime: "Tapa la imagen con una cuenta atrás. Se quita sola al terminar."
-        case .spotlight: "Te deja a color y apaga el fondo, para pedir atención."
+        case .substitution: tr("Desapareces en una nube de humo y queda un tronco que cae.")
+        case .clones: tr("Aparecen copias tuyas a los lados, que se mueven contigo.")
+        case .away: tr("Tapa la imagen con un cartel de madera mientras no estás.")
+        case .question: tr("Un globo de diálogo sobre tu imagen, para pedir la palabra sin interrumpir.")
+        case .confetti: tr("Lluvia de confeti y una palabra de ánimo durante unos segundos. Se quita solo.")
+        case .breakTime: tr("Tapa la imagen con una cuenta atrás. Se quita sola al terminar.")
+        case .spotlight: tr("Te deja a color y apaga el fondo, para pedir atención.")
         }
     }
 
@@ -208,7 +208,7 @@ enum GestureReader {
     static func advice(for gesture: Gesture, hands: [VNHumanHandPoseObservation], face: CGRect?, aspect: CGFloat) -> String? {
         let read = hands.compactMap { hand($0, aspect) }
         func d(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
-        guard let h = read.first else { return "No veo tu mano. Súbela frente a la cámara." }
+        guard let h = read.first else { return tr("No veo tu mano. Súbela frente a la cámara.") }
         func nearBrow(_ h: Hand) -> Bool? {
             guard let face, let tip = h.tips[2] ?? h.tips[1] else { return nil }
             let f = CGRect(x: face.minX * aspect, y: face.minY, width: face.width * aspect, height: face.height)
@@ -217,31 +217,31 @@ enum GestureReader {
         switch gesture {
         case .none: return nil
         case .seal:
-            guard read.count == 2 else { return "Necesito ver las dos manos a la vez." }
-            if d(read[0].centre, read[1].centre) / max(read[0].palm, read[1].palm) >= 2.2 { return "Junta más las manos." }
-            return "Apunta los dedos hacia arriba."
+            guard read.count == 2 else { return tr("Necesito ver las dos manos a la vez.") }
+            if d(read[0].centre, read[1].centre) / max(read[0].palm, read[1].palm) >= 2.2 { return tr("Junta más las manos.") }
+            return tr("Apunta los dedos hacia arriba.")
         case .browFingers:
-            guard let near = nearBrow(h) else { return "No veo tu cara. Ponte de frente a la cámara." }
-            if !near { return "Acerca los dedos a la frente o a la sien." }
-            return "Estira solo índice y medio; dobla los otros dos."
+            guard let near = nearBrow(h) else { return tr("No veo tu cara. Ponte de frente a la cámara.") }
+            if !near { return tr("Acerca los dedos a la frente o a la sien.") }
+            return tr("Estira solo índice y medio; dobla los otros dos.")
         case .salute:
-            guard let near = nearBrow(h) else { return "No veo tu cara. Ponte de frente a la cámara." }
-            if !near { return "Lleva la punta de los dedos junto a la frente." }
-            if h.straight[1...4].filter({ $0 }).count < 3 { return "Estira toda la mano, con los dedos juntos." }
-            return "Pon la mano de lado, con el codo hacia afuera."
+            guard let near = nearBrow(h) else { return tr("No veo tu cara. Ponte de frente a la cámara.") }
+            if !near { return tr("Lleva la punta de los dedos junto a la frente.") }
+            if h.straight[1...4].filter({ $0 }).count < 3 { return tr("Estira toda la mano, con los dedos juntos.") }
+            return tr("Pon la mano de lado, con el codo hacia afuera.")
         case .twoFingers:
-            if nearBrow(h) == true { return "Aleja la mano de la cara." }
-            if h.straight[3] || h.straight[4] { return "Dobla el anular y el meñique." }
-            if !(h.straight[1] && h.straight[2]) { return "Estira el índice y el medio." }
-            if max(h.reach[1], h.reach[2]) <= 1.0 { return "Apunta los dos dedos hacia arriba." }
-            return "Junta los dos dedos."
+            if nearBrow(h) == true { return tr("Aleja la mano de la cara.") }
+            if h.straight[3] || h.straight[4] { return tr("Dobla el anular y el meñique.") }
+            if !(h.straight[1] && h.straight[2]) { return tr("Estira el índice y el medio.") }
+            if max(h.reach[1], h.reach[2]) <= 1.0 { return tr("Apunta los dos dedos hacia arriba.") }
+            return tr("Junta los dos dedos.")
         case .openPalm:
-            if nearBrow(h) == true { return "Aleja la mano de la cara." }
-            return "Abre la mano con los cinco dedos estirados hacia arriba."
-        case .custom: return "Repite la posición tal como la grabaste."
+            if nearBrow(h) == true { return tr("Aleja la mano de la cara.") }
+            return tr("Abre la mano con los cinco dedos estirados hacia arriba.")
+        case .custom: return tr("Repite la posición tal como la grabaste.")
         case .thumbsUp:
-            if h.straight[1...4].contains(true) { return "Cierra el puño; solo el pulgar estirado." }
-            return "Apunta el pulgar hacia arriba."
+            if h.straight[1...4].contains(true) { return tr("Cierra el puño; solo el pulgar estirado.") }
+            return tr("Apunta el pulgar hacia arriba.")
         }
     }
 

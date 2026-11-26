@@ -8,15 +8,15 @@ final class Guide: ObservableObject {
     struct Stop { let spot: Spot; let title: String; let text: String }
 
     static let stops: [Stop] = [
-        Stop(spot: .gallery, title: "Aquí están tus efectos", text: "Cada tarjeta es un efecto, con el gesto que lo activa debajo. Haz clic en una para verla y configurarla a la derecha."),
-        Stop(spot: .film, title: "Así lo verán los demás", text: "El video muestra el efecto real encendiéndose y apagándose, tal como saldrá en tu llamada."),
-        Stop(spot: .tryLive, title: "Pruébalo en tu cámara", text: "Lo enciende sobre tu imagen en la sección En vivo. Se quita con el mismo botón, con el gesto o con el atajo."),
-        Stop(spot: .gesture, title: "El gesto que lo activa", text: "Elige una de las posiciones de mano que Kawaru ya conoce, o «Ninguno» si solo quieres usar el atajo."),
-        Stop(spot: .record, title: "O graba tu propio gesto", text: "Tienes tres segundos para poner las manos. Después lo repites tres veces para que Kawaru aprenda cómo te sale. Se guarda una foto para que lo recuerdes."),
-        Stop(spot: .practise, title: "Practica hasta que salga", text: "Te muestra el gesto y los puntos de tu mano, y cuenta cada vez que lo reconoce. Mientras practicas no se dispara ningún efecto."),
-        Stop(spot: .shortcut, title: "También con el teclado", text: "Cada efecto tiene su atajo. Funciona aunque la videollamada esté al frente."),
-        Stop(spot: .cameraPane, title: "Tu cámara y tu fondo", text: "Aquí eliges la cámara, capturas el fondo sin ti (lo necesitan los efectos que te quitan de la imagen) y ves si la cámara virtual está lista."),
-        Stop(spot: .livePane, title: "Lo que sale en la llamada", text: "En vivo muestra tu cámara con el efecto puesto. Es exactamente lo que ven los demás cuando eliges la cámara «Kawaru»."),
+        Stop(spot: .gallery, title: tr("Aquí están tus efectos"), text: tr("Cada tarjeta es un efecto, con el gesto que lo activa debajo. Haz clic en una para verla y configurarla a la derecha.")),
+        Stop(spot: .film, title: tr("Así lo verán los demás"), text: tr("El video muestra el efecto real encendiéndose y apagándose, tal como saldrá en tu llamada.")),
+        Stop(spot: .tryLive, title: tr("Pruébalo en tu cámara"), text: tr("Lo enciende sobre tu imagen en la sección En vivo. Se quita con el mismo botón, con el gesto o con el atajo.")),
+        Stop(spot: .gesture, title: tr("El gesto que lo activa"), text: tr("Elige una de las posiciones de mano que Kawaru ya conoce, o «Ninguno» si solo quieres usar el atajo.")),
+        Stop(spot: .record, title: tr("O graba tu propio gesto"), text: tr("Tienes tres segundos para poner las manos. Después lo repites tres veces para que Kawaru aprenda cómo te sale. Se guarda una foto para que lo recuerdes.")),
+        Stop(spot: .practise, title: tr("Practica hasta que salga"), text: tr("Te muestra el gesto y los puntos de tu mano, y cuenta cada vez que lo reconoce. Mientras practicas no se dispara ningún efecto.")),
+        Stop(spot: .shortcut, title: tr("También con el teclado"), text: tr("Cada efecto tiene su atajo. Funciona aunque la videollamada esté al frente.")),
+        Stop(spot: .cameraPane, title: tr("Tu cámara y tu fondo"), text: tr("Aquí eliges la cámara, capturas el fondo sin ti (lo necesitan los efectos que te quitan de la imagen) y ves si la cámara virtual está lista.")),
+        Stop(spot: .livePane, title: tr("Lo que sale en la llamada"), text: tr("En vivo muestra tu cámara con el efecto puesto. Es exactamente lo que ven los demás cuando eliges la cámara «Kawaru».")),
     ]
 
     /// The stop being shown; nil when the walk is not running.
@@ -89,14 +89,14 @@ struct GuideOverlay: View {
 
     private func balloon(_ stop: Guide.Stop, _ index: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(index + 1) de \(Guide.stops.count)").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text(tr("%lld de %lld", index + 1, Guide.stops.count)).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Text(stop.title).font(.headline)
             Text(stop.text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("Saltar") { guide.end() }.buttonStyle(.link).keyboardShortcut(.cancelAction)
+                Button(tr("Saltar")) { guide.end() }.buttonStyle(.link).keyboardShortcut(.cancelAction)
                 Spacer()
-                if index > 0 { Button("Atrás") { guide.back() } }
-                Button(index + 1 < Guide.stops.count ? "Siguiente" : "Terminar") { guide.next() }
+                if index > 0 { Button(tr("Atrás")) { guide.back() } }
+                Button(index + 1 < Guide.stops.count ? tr("Siguiente") : tr("Terminar")) { guide.next() }
                     .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
             .padding(.top, 4)

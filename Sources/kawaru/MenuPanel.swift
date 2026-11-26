@@ -30,7 +30,7 @@ struct MenuPanel: View {
 
             if !engine.rotulos.isEmpty {
                 Divider()
-                Text("Rótulos").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(tr("Rótulos")).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 VStack(spacing: 2) {
                     ForEach(Array(engine.rotulos.prefix(9).enumerated()), id: \.element.id) { index, rotulo in
                         let up = engine.captionsUp.contains(rotulo.id)
@@ -50,18 +50,18 @@ struct MenuPanel: View {
             }
 
             Divider()
-            Toggle("Gestos de manos", isOn: $engine.gesturesOn)
-                .help("Apágalos cuando vayas a mover mucho las manos; los atajos y estos botones siguen funcionando.")
-            Toggle("Abrir al iniciar sesión", isOn: Binding(get: { atLogin }, set: setLogin))
+            Toggle(tr("Gestos de manos"), isOn: $engine.gesturesOn)
+                .help(tr("Apágalos cuando vayas a mover mucho las manos; los atajos y estos botones siguen funcionando."))
+            Toggle(tr("Abrir al iniciar sesión"), isOn: Binding(get: { atLogin }, set: setLogin))
             if let loginProblem { Text(loginProblem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
             Divider()
             HStack {
-                Button("Abrir Kawaru") {
+                Button(tr("Abrir Kawaru")) {
                     openWindow(id: "main")
                     AppDelegate.showWindow()
                 }
                 Spacer()
-                Button("Salir") { NSApp.terminate(nil) }
+                Button(tr("Salir")) { NSApp.terminate(nil) }
             }
         }
         .toggleStyle(.switch)
@@ -78,26 +78,26 @@ struct MenuPanel: View {
             Text(short(effect)).font(.caption).lineLimit(1).foregroundStyle(on ? Color.green : Color.primary)
         }
         .contentShape(Rectangle())
-        .accessibilityLabel("\(effect.title)\(on ? ", activo" : "")")
+        .accessibilityLabel(on ? tr("%@, activo", effect.title) : effect.title)
     }
 
     /// One word for under the picture.
     private func short(_ effect: Effect) -> String {
         switch effect {
-        case .substitution: "Sustitución"
-        case .clones: "Clones"
-        case .away: "Cartel"
-        case .question: "Pregunta"
-        case .confetti: "Confeti"
-        case .breakTime: "Descanso"
-        case .spotlight: "Foco"
+        case .substitution: tr("Sustitución")
+        case .clones: tr("Clones")
+        case .away: tr("Cartel")
+        case .question: tr("Pregunta")
+        case .confetti: tr("Confeti")
+        case .breakTime: tr("Descanso")
+        case .spotlight: tr("Foco")
         }
     }
 
     private var status: String {
-        if engine.access != .granted { return "Sin cámara" }
-        if let n = engine.watchers, n > 0 { return n == 1 ? "En uso en una llamada" : "En uso en \(n) apps" }
-        return engine.cameraOn ? "Cámara encendida" : "En espera, cámara apagada"
+        if engine.access != .granted { return tr("Sin cámara") }
+        if let n = engine.watchers, n > 0 { return n == 1 ? tr("En uso en una llamada") : tr("En uso en %lld apps", n) }
+        return engine.cameraOn ? tr("Cámara encendida") : tr("En espera, cámara apagada")
     }
 
     private var statusTint: Color {
@@ -110,7 +110,7 @@ struct MenuPanel: View {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             loginProblem = nil
         } catch {
-            loginProblem = "No se pudo cambiar: \(error.localizedDescription)"
+            loginProblem = tr("No se pudo cambiar: %@", error.localizedDescription)
         }
         atLogin = SMAppService.mainApp.status == .enabled
     }

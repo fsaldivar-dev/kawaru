@@ -1,4 +1,8 @@
 <p align="center">
+  <b>Español</b> · <a href="README.en.md">English</a> · <a href="README.pt-BR.md">Português</a> · <a href="README.fr.md">Français</a> · <a href="README.ja.md">日本語</a> · <a href="README.zh-Hans.md">简体中文</a> · <a href="README.ko.md">한국어</a>
+</p>
+
+<p align="center">
   <img src="assets/icon_1024.png" width="128" alt="Icono de Kawaru">
 </p>
 
@@ -11,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/fsaldivar-dev/kawaru/releases/latest/download/Kawaru-0.1.0.dmg"><b>Descargar para macOS</b></a>
+  <a href="https://github.com/fsaldivar-dev/kawaru/releases/latest/download/Kawaru-0.2.0.dmg"><b>Descargar para macOS</b></a>
   &nbsp;·&nbsp;
   <a href="docs/guia.md">Guía de uso</a>
   &nbsp;·&nbsp;
@@ -97,7 +101,7 @@ en tu carpeta de usuario, las fotos de los gestos que grabas y los iconos que el
 
 ## Empieza en tres pasos
 
-1. **[Descarga Kawaru](https://github.com/fsaldivar-dev/kawaru/releases/latest/download/Kawaru-0.1.0.dmg)**,
+1. **[Descarga Kawaru](https://github.com/fsaldivar-dev/kawaru/releases/latest/download/Kawaru-0.2.0.dmg)**,
    abre el archivo y arrástrala a Aplicaciones.
 2. **Ábrela y sigue el tutorial:** das permiso a la cámara, instalas la cámara virtual y pruebas tu primer gesto.
 3. **En tu app de videollamadas, elige la cámara «Kawaru».** Listo.
@@ -106,7 +110,7 @@ La [guía de uso](docs/guia.md) explica cada cosa con detalle, incluidas las sol
 
 ## Estado
 
-Esta es la versión **0.1.0**, la primera pública. Está firmada y notarizada por Apple. Se ha probado en
+Esta es la versión **0.2.0**. Está firmada y notarizada por Apple. La app habla español, inglés, portugués, francés, japonés, chino simplificado y coreano: usa el idioma de tu Mac (las capturas de esta página muestran la versión en español). Se ha probado en
 una Mac con macOS 26; si algo no te funciona, [abre un reporte](https://github.com/fsaldivar-dev/kawaru/issues)
 y cuéntanos qué Mac y qué versión de macOS tienes.
 
@@ -123,7 +127,8 @@ scripts/build.sh --install  # compila e instala en /Applications
 
 Necesitas Xcode con tu cuenta de desarrollador y `xcodegen` (`brew install xcodegen`). Para publicar una
 versión firmada y notarizada, mira los comentarios de [`scripts/release.sh`](scripts/release.sh).
-`scripts/previews.sh` regenera las imágenes de la galería pasando las fotos de `assets/modelo` por el
+Los textos de la app se escriben en español y sus traducciones viven en `assets/idiomas`; `scripts/idiomas.sh`
+comprueba que no falte ninguna. `scripts/previews.sh` regenera las imágenes de la galería pasando las fotos de `assets/modelo` por el
 compositor real de la app.
 
 ## Créditos

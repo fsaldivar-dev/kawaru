@@ -65,7 +65,7 @@ enum Card {
             let room: CGFloat = i == 0 ? 790 : 400
             func line(_ size: CGFloat) -> CTLine {
                 let attributes: [NSAttributedString.Key: Any] = [
-                    NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName("MarkerFelt-Wide" as CFString, size, nil),
+                    NSAttributedString.Key(kCTFontAttributeName as String): lettering("MarkerFelt-Wide", size, for: text),
                     NSAttributedString.Key(kCTForegroundColorAttributeName as String): ink,
                 ]
                 return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))

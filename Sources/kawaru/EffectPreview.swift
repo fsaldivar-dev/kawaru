@@ -21,7 +21,7 @@ enum EffectPreview {
     /// made by scripts/previews.sh.
     static func illustration(_ effect: Effect) -> CGImage? {
         if let image = art[effect] { return image }
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).jpg"),
+        guard let url = shipped(effect.rawValue + ".jpg"),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         art[effect] = image
         return image
@@ -29,9 +29,14 @@ enum EffectPreview {
 
     /// The short film of the effect being switched on and off, if the app ships one.
     static func film(_ effect: Effect) -> URL? {
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).mp4"),
-              FileManager.default.fileExists(atPath: url.path) else { return nil }
-        return url
+        shipped(effect.rawValue + ".mp4")
+    }
+
+    /// The effects that show words have a copy in each language (efectos/<language>/); the rest are the same for everyone.
+    private static func shipped(_ name: String) -> URL? {
+        guard let folder = Bundle.main.resourceURL?.appendingPathComponent("efectos") else { return nil }
+        return [folder.appendingPathComponent(shownLanguage).appendingPathComponent(name), folder.appendingPathComponent(name)]
+            .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     /// The room with the figure in it and no effect: what the camera shows before.

@@ -22,7 +22,13 @@ cp "$BIN" "$APP/Contents/MacOS/kawaru"
 if compgen -G "assets/efectos/*.jpg" > /dev/null; then
   mkdir -p "$APP/Contents/Resources/efectos"
   cp assets/efectos/*.jpg assets/efectos/*.mp4 "$APP/Contents/Resources/efectos/"
+  # The effects that show words have a copy per language.
+  for d in assets/efectos/*/; do [[ -d "$d" ]] && cp -R "${d%/}" "$APP/Contents/Resources/efectos/"; done
 fi
+
+# The translations: Spanish is what the code is written in, and each .lproj holds one other language.
+scripts/idiomas.sh
+cp -R assets/idiomas/*.lproj "$APP/Contents/Resources/"
 
 # The networks' logos for the social captions (white on clear; from Simple Icons, CC0).
 if compgen -G "assets/redes/*.png" > /dev/null; then
@@ -67,11 +73,12 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>kawaru</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>0.2.0</string>
+  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSCameraUsageDescription</key><string>Kawaru mira tu cámara para detectar el sello de manos y cambiarte por un tronco. La imagen no sale de tu Mac ni se guarda.</string>
+  <key>NSCameraUsageDescription</key><string>Kawaru watches your camera to read your hand gestures and put effects and captions over your picture. The picture never leaves your Mac.</string>
 </dict>
 </plist>
 PLIST
@@ -117,7 +124,8 @@ if [[ -n "$PROFILE" ]]; then
   EXT="$APP/Contents/Library/SystemExtensions/dev.kawaru.app.camera.systemextension"
   mkdir -p "$EXT/Contents/MacOS"
   cp "$(dirname "$BIN")/kawaru-camera" "$EXT/Contents/MacOS/kawaru-camera"
-  # The version follows the binary, so macOS replaces the installed extension only when its code changed.
+  # The version follows the binary, so macOS replaces the installed extension only when its code changed
+  # (which is also why its short version below stays put between releases that do not touch it).
   CAMERA_VERSION="$(cksum < "$EXT/Contents/MacOS/kawaru-camera" | cut -d" " -f1)"
   # The Mach service name has to start with one of the extension's app groups, and the group with the team.
   cat > "$EXT/Contents/Info.plist" <<PLIST

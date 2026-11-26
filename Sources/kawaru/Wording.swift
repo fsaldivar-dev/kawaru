@@ -8,8 +8,8 @@ enum Wording {
         case cheer = "text.cheer", breakMinutes = "break.minutes"
     }
 
-    static let defaults: [Key: String] = [.sign1: "Regreso en", .sign2: "5 minutos", .question1: "Tengo una", .question2: "pregunta",
-                                          .cheer: "¡Bravo!"]
+    static let defaults: [Key: String] = [.sign1: tr("Regreso en"), .sign2: tr("5 minutos"), .question1: tr("Tengo una"), .question2: tr("pregunta"),
+                                          .cheer: tr("¡Bravo!")]
     static let defaultBreakMinutes = 5
     /// Longest text a line takes; past this the lettering would shrink too far to read on a call.
     static let longest = 18

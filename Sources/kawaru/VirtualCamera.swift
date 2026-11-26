@@ -40,9 +40,9 @@ final class VirtualCamera: NSObject, ObservableObject, OSSystemExtensionRequestD
         let bundle = Bundle.main
         let inside = bundle.bundleURL.appendingPathComponent("Contents/Library/SystemExtensions/\(Self.extensionID).systemextension")
         if !FileManager.default.fileExists(atPath: inside.path) {
-            state = .unavailable("Esta copia de Kawaru se armó sin la extensión de cámara.")
+            state = .unavailable(tr("Esta copia de Kawaru se armó sin la extensión de cámara."))
         } else if !bundle.bundlePath.hasPrefix("/Applications/") {
-            state = .unavailable("macOS solo instala extensiones de cámara desde la carpeta Aplicaciones. Instala con scripts/build.sh --install.")
+            state = .unavailable(tr("macOS solo instala extensiones de cámara desde la carpeta Aplicaciones. Instala con scripts/build.sh --install."))
         }
         // The extension may already be there from an earlier run. If so, before touching it, hand macOS the copy
         // inside this app so a newer one replaces it; the same version is cancelled in the delegate. The order

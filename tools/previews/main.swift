@@ -89,7 +89,10 @@ let shots: [(name: String, look: Look, on: Int, after: Int, still: Int)] = [
     ("away", .away, 80, 30, 45), ("question", .question, 80, 25, 45), ("confetti", .confetti, 118, 12, 48),
     ("breakTime", .breakTime, 75, 25, 45), ("spotlight", .spotlight, 75, 25, 45),
 ]
-for (index, shot) in shots.enumerated() {
+// For another language (KAWARU_IDIOMA, see scripts/previews.sh) only the effects that show words are made again.
+let worded: Set<String> = ["away", "question", "confetti", "breakTime"]
+let translating = ProcessInfo.processInfo.environment["KAWARU_IDIOMA"] != nil
+for (index, shot) in shots.enumerated() where !translating || worded.contains(shot.name) {
     let person = people[index % people.count].frame, personMask = people[index % people.count].mask
     let compositor = Compositor()
     var now = 1000.0

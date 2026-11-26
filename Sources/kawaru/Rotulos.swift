@@ -14,11 +14,11 @@ struct Rotulo: Codable, Identifiable, Hashable {
 
         var title: String {
             switch self {
-            case .lowerThird: "Tercio inferior"
-            case .banner: "Banner"
-            case .badge: "Insignia"
-            case .card: "Tarjeta completa"
-            case .social: "Red social"
+            case .lowerThird: tr("Tercio inferior")
+            case .banner: tr("Banner")
+            case .badge: tr("Insignia")
+            case .card: tr("Tarjeta completa")
+            case .social: tr("Red social")
             }
         }
 
@@ -47,11 +47,11 @@ struct Rotulo: Codable, Identifiable, Hashable {
         /// What the two lines of text are called in the editor.
         var labels: (String, String) {
             switch self {
-            case .lowerThird: ("Nombre", "Cargo o detalle")
-            case .banner: ("Titular", "Texto")
-            case .badge: ("Texto", "")
-            case .card: ("Título", "Subtítulo")
-            case .social: ("Usuario", "")
+            case .lowerThird: (tr("Nombre"), tr("Cargo o detalle"))
+            case .banner: (tr("Titular"), tr("Texto"))
+            case .badge: (tr("Texto"), "")
+            case .card: (tr("Título"), tr("Subtítulo"))
+            case .social: (tr("Usuario"), "")
             }
         }
     }
@@ -71,7 +71,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
             case .youtube: "YouTube"
             case .twitch: "Twitch"
             case .tiktok: "TikTok"
-            case .web: "Sitio web"
+            case .web: tr("Sitio web")
             }
         }
 
@@ -104,11 +104,11 @@ struct Rotulo: Codable, Identifiable, Hashable {
         /// What the user's name there usually looks like, as the field's hint.
         var example: String {
             switch self {
-            case .linkedin: "/in/tu-nombre"
-            case .github, .x, .instagram, .tiktok: "@tu_usuario"
-            case .youtube: "@tu_canal"
-            case .twitch: "/tu_canal"
-            case .web: "tusitio.com"
+            case .linkedin: tr("/in/tu-nombre")
+            case .github, .x, .instagram, .tiktok: tr("@tu_usuario")
+            case .youtube: tr("@tu_canal")
+            case .twitch: tr("/tu_canal")
+            case .web: tr("tusitio.com")
             }
         }
     }
@@ -120,11 +120,11 @@ struct Rotulo: Codable, Identifiable, Hashable {
 
         var title: String {
             switch self {
-            case .minimal: "Minimal"
-            case .corporate: "Corporativo"
-            case .neon: "Neón"
-            case .wood: "Madera"
-            case .custom: "Personalizado"
+            case .minimal: tr("Minimal")
+            case .corporate: tr("Corporativo")
+            case .neon: tr("Neón")
+            case .wood: tr("Madera")
+            case .custom: tr("Personalizado")
             }
         }
     }
@@ -136,12 +136,12 @@ struct Rotulo: Codable, Identifiable, Hashable {
 
         var title: String {
             switch self {
-            case .topLeft: "Arriba a la izquierda"
-            case .top: "Arriba"
-            case .topRight: "Arriba a la derecha"
-            case .bottomLeft: "Abajo a la izquierda"
-            case .bottom: "Abajo"
-            case .bottomRight: "Abajo a la derecha"
+            case .topLeft: tr("Arriba a la izquierda")
+            case .top: tr("Arriba")
+            case .topRight: tr("Arriba a la derecha")
+            case .bottomLeft: tr("Abajo a la izquierda")
+            case .bottom: tr("Abajo")
+            case .bottomRight: tr("Abajo a la derecha")
             }
         }
 
@@ -157,10 +157,10 @@ struct Rotulo: Codable, Identifiable, Hashable {
 
         var title: String {
             switch self {
-            case .slide: "Deslizar"
-            case .fade: "Aparecer"
-            case .pop: "Rebote"
-            case .wipe: "Revelar"
+            case .slide: tr("Deslizar")
+            case .fade: tr("Aparecer")
+            case .pop: tr("Rebote")
+            case .wipe: tr("Revelar")
             }
         }
     }
@@ -195,13 +195,13 @@ struct Rotulo: Codable, Identifiable, Hashable {
 
             var title: String {
                 switch self {
-                case .clean: "Limpia"
-                case .rounded: "Redonda"
-                case .elegant: "Elegante"
-                case .script: "Manuscrita"
-                case .marker: "Rotulador"
-                case .condensed: "Condensada"
-                case .typewriter: "Máquina"
+                case .clean: tr("Limpia")
+                case .rounded: tr("Redonda")
+                case .elegant: tr("Elegante")
+                case .script: tr("Manuscrita")
+                case .marker: tr("Rotulador")
+                case .condensed: tr("Condensada")
+                case .typewriter: tr("Máquina")
                 }
             }
 
@@ -235,11 +235,11 @@ struct Rotulo: Codable, Identifiable, Hashable {
     /// What a new caption of each kind starts as.
     static func new(_ kind: Kind, theme: Theme = .minimal) -> Rotulo {
         switch kind {
-        case .lowerThird: Rotulo(kind: kind, title: "Tu nombre", subtitle: "Tu cargo", theme: theme, place: .bottomLeft)
-        case .banner: Rotulo(kind: kind, title: "Tema de hoy", subtitle: "Escribe aquí de qué va la reunión", theme: theme, place: .top)
-        case .badge: Rotulo(kind: kind, title: "En vivo", theme: theme, place: .topRight, entrance: .pop)
-        case .card: Rotulo(kind: kind, title: "Empezamos pronto", subtitle: "Vuelvo en un momento", theme: theme, place: .top, entrance: .fade)
-        case .social: Rotulo(kind: kind, title: "/in/tu-nombre", theme: theme, place: .topRight, networkName: Network.linkedin.rawValue)
+        case .lowerThird: Rotulo(kind: kind, title: tr("Tu nombre"), subtitle: tr("Tu cargo"), theme: theme, place: .bottomLeft)
+        case .banner: Rotulo(kind: kind, title: tr("Tema de hoy"), subtitle: tr("Escribe aquí de qué va la reunión"), theme: theme, place: .top)
+        case .badge: Rotulo(kind: kind, title: tr("En vivo"), theme: theme, place: .topRight, entrance: .pop)
+        case .card: Rotulo(kind: kind, title: tr("Empezamos pronto"), subtitle: tr("Vuelvo en un momento"), theme: theme, place: .top, entrance: .fade)
+        case .social: Rotulo(kind: kind, title: tr("/in/tu-nombre"), theme: theme, place: .topRight, networkName: Network.linkedin.rawValue)
         }
     }
 
@@ -443,7 +443,7 @@ enum Rotulos {
 
     private static func line(_ text: String, _ font: String, _ size: CGFloat, _ color: CGColor, tracking: CGFloat = 0) -> CTLine {
         var attributes: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName(font as CFString, size, nil),
+            NSAttributedString.Key(kCTFontAttributeName as String): lettering(font, size, for: text),
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
         ]
         if tracking != 0 { attributes[NSAttributedString.Key(kCTKernAttributeName as String)] = tracking }

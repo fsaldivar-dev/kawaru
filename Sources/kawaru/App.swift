@@ -22,11 +22,11 @@ struct KawaruApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appInfo) {
-                Button("Acerca de Kawaru") { touring = false; section = .about }
+                Button(tr("Acerca de Kawaru")) { touring = false; section = .about }
             }
             CommandGroup(replacing: .help) {
-                Button("Tutorial de bienvenida") { guide.index = nil; touring = true }
-                Button("Recorrido por la ventana") { touring = false; section = .effects; guide.start() }
+                Button(tr("Tutorial de bienvenida")) { guide.index = nil; touring = true }
+                Button(tr("Recorrido por la ventana")) { touring = false; section = .effects; guide.start() }
             }
         }
 
@@ -67,11 +67,11 @@ enum Pane: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .live: "En vivo"
-        case .effects: "Efectos"
-        case .captions: "Rótulos"
-        case .camera: "Cámara"
-        case .about: "Acerca de"
+        case .live: tr("En vivo")
+        case .effects: tr("Efectos")
+        case .captions: tr("Rótulos")
+        case .camera: tr("Cámara")
+        case .about: tr("Acerca de")
         }
     }
 
@@ -142,8 +142,8 @@ struct ContentView: View {
             let asked = UserDefaults.standard.integer(forKey: "guideStep")
             if asked > 0 || !UserDefaults.standard.bool(forKey: "guided") { section = .effects; guide.start(at: max(0, asked - 1)) }
         }
-        .alert("No se pudo grabar la posición", isPresented: Binding(get: { engine.recordProblem != nil }, set: { if !$0 { engine.recordProblem = nil } })) {
-            Button("Entendido", role: .cancel) {}
+        .alert(tr("No se pudo grabar la posición"), isPresented: Binding(get: { engine.recordProblem != nil }, set: { if !$0 { engine.recordProblem = nil } })) {
+            Button(tr("Entendido"), role: .cancel) {}
         } message: {
             Text(engine.recordProblem ?? "")
         }
@@ -181,7 +181,7 @@ struct LiveView: View {
                     if let left = engine.countdown {
                         VStack(spacing: 10) {
                             Text("\(left)").font(.system(size: 96, weight: .semibold, design: .rounded)).monospacedDigit()
-                            Text("Sal del cuadro").font(.title3.weight(.medium))
+                            Text(tr("Sal del cuadro")).font(.title3.weight(.medium))
                         }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -197,11 +197,11 @@ struct LiveView: View {
                         }
                     }
                 case .asking:
-                    notice("video", "Esperando el permiso de cámara")
+                    notice("video", tr("Esperando el permiso de cámara"))
                 case .denied:
-                    notice("video.slash", "Kawaru no tiene permiso de cámara. Actívalo en Configuración del Sistema, Privacidad y seguridad, Cámara.")
+                    notice("video.slash", tr("Kawaru no tiene permiso de cámara. Actívalo en Configuración del Sistema, Privacidad y seguridad, Cámara."))
                 case .noCamera:
-                    notice("video.slash", "No se encontró ninguna cámara")
+                    notice("video.slash", tr("No se encontró ninguna cámara"))
                 }
             }
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
@@ -216,8 +216,8 @@ struct LiveView: View {
                 Text(status).font(.callout).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                 Spacer(minLength: 20)
                 VirtualCameraControl(camera: camera)
-                Button(engine.hasBackground ? "Volver a capturar" : "Capturar fondo") { engine.captureBackground() }
-                    .help("Pulsa y sal del cuadro: a los tres segundos Kawaru fotografía el fondo sin ti. Solo se guarda en memoria.")
+                Button(engine.hasBackground ? tr("Volver a capturar") : tr("Capturar fondo")) { engine.captureBackground() }
+                    .help(tr("Pulsa y sal del cuadro: a los tres segundos Kawaru fotografía el fondo sin ti. Solo se guarda en memoria."))
                     .disabled(engine.access != .granted || engine.countdown != nil)
             }
             .padding(.horizontal, 20)
@@ -228,15 +228,15 @@ struct LiveView: View {
 
     /// What is missing before the swap can hide the person completely.
     private var hint: String? {
-        if !engine.hasBackground { return "Para desaparecer por completo, captura el fondo sin ti antes de empezar" }
-        if engine.backgroundHasPerson { return "Saliste en la captura del fondo. Repítela fuera del cuadro" }
+        if !engine.hasBackground { return tr("Para desaparecer por completo, captura el fondo sin ti antes de empezar") }
+        if engine.backgroundHasPerson { return tr("Saliste en la captura del fondo. Repítela fuera del cuadro") }
         return nil
     }
 
     private var status: String {
         guard engine.access == .granted else { return "" }
         guard engine.fps > 0 else { return engine.cameraName }
-        return "\(engine.cameraName) · \(engine.fps) fps · \(Int(engine.milliseconds.rounded())) ms por fotograma"
+        return engine.cameraName + " · " + tr("%lld fps · %lld ms por fotograma", engine.fps, Int(engine.milliseconds.rounded()))
     }
 
     private func notice(_ symbol: String, _ text: String) -> some View {
@@ -258,9 +258,9 @@ struct StatePill: View {
     var body: some View {
         let filling = hold > 0
         let tint: Color = filling ? .accentColor : (look == .person ? .secondary : .green)
-        let names: [Look: String] = [.trunk: "Tronco activo", .clones: "Clones activos", .away: "Cartel activo", .question: "Pregunta activa",
-                                     .confetti: "Confeti", .breakTime: "Descanso activo", .spotlight: "Foco activo"]
-        let text = filling ? holding.title + "…" : (names[look] ?? "Tú")
+        let names: [Look: String] = [.trunk: tr("Tronco activo"), .clones: tr("Clones activos"), .away: tr("Cartel activo"), .question: tr("Pregunta activa"),
+                                     .confetti: tr("Confeti"), .breakTime: tr("Descanso activo"), .spotlight: tr("Foco activo")]
+        let text = filling ? holding.title + "…" : (names[look] ?? tr("Tú"))
         HStack(spacing: 7) {
             ZStack {
                 Circle().stroke(tint.opacity(0.25), lineWidth: 2)
@@ -291,16 +291,16 @@ struct WordingFields: View {
     var body: some View {
         switch effect {
         case .away:
-            field("Primera línea", $sign1, .sign1)
-            field("Segunda línea", $sign2, .sign2)
+            field(tr("Primera línea"), $sign1, .sign1)
+            field(tr("Segunda línea"), $sign2, .sign2)
         case .question:
-            field("Primera línea", $question1, .question1)
-            field("Segunda línea", $question2, .question2)
+            field(tr("Primera línea"), $question1, .question1)
+            field(tr("Segunda línea"), $question2, .question2)
         case .confetti:
-            field("Palabra", $cheer, .cheer)
+            field(tr("Palabra"), $cheer, .cheer)
         case .breakTime:
             Stepper(value: $minutes, in: 1...60) {
-                LabeledContent("Duración") { Text(minutes == 1 ? "1 minuto" : "\(minutes) minutos").foregroundStyle(.secondary) }
+                LabeledContent(tr("Duración")) { Text(minutes == 1 ? tr("1 minuto") : tr("%lld minutos", minutes)).foregroundStyle(.secondary) }
             }
         default:
             EmptyView()
@@ -355,23 +355,23 @@ struct VirtualCameraControl: View {
     var body: some View {
         switch camera.state {
         case .ready:
-            Label("Cámara virtual activa", systemImage: "web.camera")
+            Label(tr("Cámara virtual activa"), systemImage: "web.camera")
                 .font(.callout).foregroundStyle(.secondary)
-                .help("En Meet, Zoom o cualquier app de video, elige la cámara «Kawaru».")
+                .help(tr("En Meet, Zoom o cualquier app de video, elige la cámara «Kawaru»."))
         case .notInstalled:
-            Button("Instalar cámara virtual") { camera.install() }
-                .help("Instala la cámara «Kawaru» para usarla en Meet, Zoom y otras apps. macOS te pedirá aprobarla.")
+            Button(tr("Instalar cámara virtual")) { camera.install() }
+                .help(tr("Instala la cámara «Kawaru» para usarla en Meet, Zoom y otras apps. macOS te pedirá aprobarla."))
         case .installing:
-            HStack(spacing: 7) { ProgressView().controlSize(.small); Text("Instalando…").font(.callout).foregroundStyle(.secondary) }
+            HStack(spacing: 7) { ProgressView().controlSize(.small); Text(tr("Instalando…")).font(.callout).foregroundStyle(.secondary) }
         case .needsApproval:
-            Button("Aprobar en Configuración…") {
+            Button(tr("Aprobar en Configuración…")) {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!)
             }
-            .help("Actívala en Configuración del Sistema, General, Ítems de inicio y extensiones, Extensiones de cámara.")
+            .help(tr("Actívala en Configuración del Sistema, General, Ítems de inicio y extensiones, Extensiones de cámara."))
         case .unavailable(let why):
-            Label("Cámara virtual no disponible", systemImage: "web.camera").font(.callout).foregroundStyle(.tertiary).help(why)
+            Label(tr("Cámara virtual no disponible"), systemImage: "web.camera").font(.callout).foregroundStyle(.tertiary).help(why)
         case .failed(let why):
-            Button("Reintentar instalación") { camera.install() }.help("No se pudo instalar: \(why)")
+            Button(tr("Reintentar instalación")) { camera.install() }.help(tr("No se pudo instalar: %@", why))
         }
     }
 }
@@ -394,13 +394,13 @@ struct PracticeCard: View {
                 Text(gesture.symbol).font(.system(size: 46)).frame(minWidth: 64)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(engine.refining ? (done ? "¡Listo! Posición aprendida" : "Repítela para afinarla") : (done ? "¡Listo! \(gesture.title)" : "Practica: \(gesture.title)")).font(.headline)
-                Text(engine.refining ? "Baja las manos y vuelve a hacer la posición, tal como te salga. Cada repetición enseña una variante." : gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(engine.refining ? (done ? tr("¡Listo! Posición aprendida") : tr("Repítela para afinarla")) : (done ? tr("¡Listo! %@", gesture.title) : tr("Practica: %@", gesture.title))).font(.headline)
+                Text(engine.refining ? tr("Baja las manos y vuelve a hacer la posición, tal como te salga. Cada repetición enseña una variante.") : gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if !done, let tip = engine.practiceTip {
                     Label(tip, systemImage: "lightbulb").font(.callout.weight(.medium)).foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if !done, engine.hold > 0 {
-                    Label("Bien, mantenla…", systemImage: "checkmark.circle").font(.callout.weight(.medium)).foregroundStyle(.green)
+                    Label(tr("Bien, mantenla…"), systemImage: "checkmark.circle").font(.callout.weight(.medium)).foregroundStyle(.green)
                 }
             }
             Spacer(minLength: 12)
@@ -411,9 +411,9 @@ struct PracticeCard: View {
                 }
             }
             if done {
-                Button(engine.practiceLeft > 0 ? "Siguiente" : "Terminar") { engine.nextPractice() }.keyboardShortcut(.defaultAction)
+                Button(engine.practiceLeft > 0 ? tr("Siguiente") : tr("Terminar")) { engine.nextPractice() }.keyboardShortcut(.defaultAction)
             } else {
-                Button("Saltar") { engine.nextPractice() }
+                Button(tr("Saltar")) { engine.nextPractice() }
             }
         }
         .padding(.horizontal, 18)
@@ -432,13 +432,13 @@ struct RecordingCard: View {
         VStack(spacing: 12) {
             if let left = engine.recordCountdown {
                 Text("\(left)").font(.system(size: 96, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text("Pon las manos como quieras para «\(engine.title(of: effect))»").font(.title3.weight(.medium))
-                Text("Elige una posición que no hagas sin querer, y mantenla quieta.").font(.callout).opacity(0.85)
+                Text(tr("Pon las manos como quieras para «%@»", engine.title(of: effect))).font(.title3.weight(.medium))
+                Text(tr("Elige una posición que no hagas sin querer, y mantenla quieta.")).font(.callout).opacity(0.85)
             } else {
                 Image(systemName: "record.circle").font(.system(size: 64, weight: .light)).symbolEffect(.pulse)
-                Text("Grabando… no te muevas").font(.title3.weight(.medium))
+                Text(tr("Grabando… no te muevas")).font(.title3.weight(.medium))
             }
-            Button("Cancelar") { engine.cancelRecording() }.padding(.top, 6)
+            Button(tr("Cancelar")) { engine.cancelRecording() }.padding(.top, 6)
         }
         .multilineTextAlignment(.center)
         .foregroundStyle(.white)

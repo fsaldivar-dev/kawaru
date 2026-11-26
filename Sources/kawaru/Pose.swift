@@ -193,7 +193,7 @@ struct PoseTemplate: Codable, Equatable {
 
     /// In words, what was recorded: for showing next to the command.
     var summary: String {
-        hands.count == 2 ? "Dos manos" : (faceOffset != nil ? "Una mano, junto a la cara" : "Una mano")
+        hands.count == 2 ? tr("Dos manos") : (faceOffset != nil ? tr("Una mano, junto a la cara") : tr("Una mano"))
     }
 
     private func matches(_ live: [HandShape], _ face: CGRect?, _ aspect: CGFloat, flip: CGFloat, slack: CGFloat) -> Bool {

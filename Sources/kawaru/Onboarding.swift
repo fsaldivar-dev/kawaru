@@ -26,12 +26,12 @@ struct Onboarding: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.25), value: step)   // only the dots glide; words and picture cut
-                .accessibilityLabel("Paso \(step + 1) de \(count)")
+                .accessibilityLabel(tr("Paso %lld de %lld", step + 1, count))
                 Spacer()
                 words
                 Spacer()
                 HStack {
-                    if step > 0 { Button("Atrás") { go(step - 1) } }
+                    if step > 0 { Button(tr("Atrás")) { go(step - 1) } }
                     Spacer()
                     buttons
                 }
@@ -69,7 +69,7 @@ struct Onboarding: View {
                     Preview(layer: engine.display, mirrored: true)
                     if !engine.joints.isEmpty { HandMarksView(hands: engine.joints, mirrored: true) }
                 } else {
-                    Label("Sin cámara todavía", systemImage: "video.slash").foregroundStyle(.white.opacity(0.7))
+                    Label(tr("Sin cámara todavía"), systemImage: "video.slash").foregroundStyle(.white.opacity(0.7))
                 }
             }
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
@@ -91,7 +91,7 @@ struct Onboarding: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
         .padding(28)
-        .accessibilityLabel("Ejemplo del efecto \(effect.title)")
+        .accessibilityLabel(tr("Ejemplo del efecto %@", effect.title))
     }
 
     // MARK: The words
@@ -120,33 +120,33 @@ struct Onboarding: View {
             switch step {
             case 0:
                 Image(nsImage: AppIcon.image).resizable().frame(width: 72, height: 72)
-                title("Tus videollamadas, con un gesto")
-                text("Haz una seña con la mano y Kawaru pone un efecto sobre tu cámara: confeti para celebrar, un cartel cuando te ausentas, un globo para pedir la palabra.")
-                text("Funciona en Meet, Zoom, Teams y cualquier app de video.")
+                title(tr("Tus videollamadas, con un gesto"))
+                text(tr("Haz una seña con la mano y Kawaru pone un efecto sobre tu cámara: confeti para celebrar, un cartel cuando te ausentas, un globo para pedir la palabra."))
+                text(tr("Funciona en Meet, Zoom, Teams y cualquier app de video."))
             case 1:
-                title("Primero, tu cámara")
-                text("Kawaru mira tu cámara para leer tus manos. Todo pasa en tu Mac: nada se sube a internet.")
+                title(tr("Primero, tu cámara"))
+                text(tr("Kawaru mira tu cámara para leer tus manos. Todo pasa en tu Mac: nada se sube a internet."))
                 switch engine.access {
-                case .granted: done("Cámara lista")
+                case .granted: done(tr("Cámara lista"))
                 case .denied:
-                    Label("Kawaru no tiene permiso de cámara. Actívalo en Configuración del Sistema, Privacidad y seguridad, Cámara, y vuelve a abrir Kawaru.", systemImage: "exclamationmark.triangle")
+                    Label(tr("Kawaru no tiene permiso de cámara. Actívalo en Configuración del Sistema, Privacidad y seguridad, Cámara, y vuelve a abrir Kawaru."), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                case .noCamera: Label("No se encontró ninguna cámara.", systemImage: "video.slash").foregroundStyle(.orange)
+                case .noCamera: Label(tr("No se encontró ninguna cámara."), systemImage: "video.slash").foregroundStyle(.orange)
                 case .asking: EmptyView()
                 }
             case 2:
-                title("Una cámara nueva para tus llamadas")
-                text("Instala la cámara virtual «Kawaru». Es la que elegirás en Meet o Zoom para que los demás vean tus efectos.")
+                title(tr("Una cámara nueva para tus llamadas"))
+                text(tr("Instala la cámara virtual «Kawaru». Es la que elegirás en Meet o Zoom para que los demás vean tus efectos."))
                 switch camera.state {
-                case .ready: done("Cámara virtual lista")
+                case .ready: done(tr("Cámara virtual lista"))
                 case .needsApproval:
-                    text("macOS pide que la apruebes tú: en Configuración del Sistema, General, Ítems de inicio y extensiones, Extensiones de cámara, activa Kawaru.")
+                    text(tr("macOS pide que la apruebes tú: en Configuración del Sistema, General, Ítems de inicio y extensiones, Extensiones de cámara, activa Kawaru."))
                     VirtualCameraControl(camera: camera)
                 default: VirtualCameraControl(camera: camera)
                 }
             case 3:
                 let gesture = engine.commands[first] ?? first.defaultGesture
-                title(engine.practiceHits >= Engine.practiceGoal ? "¡Eso es!" : "Tu primer gesto")
+                title(engine.practiceHits >= Engine.practiceGoal ? tr("¡Eso es!") : tr("Tu primer gesto"))
                 HStack(alignment: .center, spacing: 14) {
                     Text(gesture.symbol).font(.system(size: 44))
                     VStack(alignment: .leading, spacing: 3) {
@@ -154,7 +154,7 @@ struct Onboarding: View {
                         Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                text("Mantenlo medio segundo frente a la cámara, bájalo y repite. En una llamada, este gesto lanza «\(first.title)».")
+                text(tr("Mantenlo medio segundo frente a la cámara, bájalo y repite. En una llamada, este gesto lanza «%@».", first.title))
                 HStack(spacing: 8) {
                     ForEach(0..<Engine.practiceGoal, id: \.self) { i in
                         Circle().fill(i < engine.practiceHits ? Color.green : Color.primary.opacity(0.15)).frame(width: 14, height: 14)
@@ -165,11 +165,11 @@ struct Onboarding: View {
                 }
                 .animation(.easeOut(duration: 0.2), value: engine.practiceHits)
             default:
-                title("Listo para tu próxima llamada")
+                title(tr("Listo para tu próxima llamada"))
                 VStack(alignment: .leading, spacing: 14) {
-                    point("web.camera", "En Meet, Zoom o Teams, elige la cámara «Kawaru».")
-                    point("hand.raised", "Cada efecto tiene su gesto y su atajo de teclado. Cámbialos, o graba tu propio gesto, en Efectos.")
-                    point("photo", "Para los efectos que te quitan de la imagen, captura antes el fondo sin ti, en Cámara.")
+                    point("web.camera", tr("En Meet, Zoom o Teams, elige la cámara «Kawaru»."))
+                    point("hand.raised", tr("Cada efecto tiene su gesto y su atajo de teclado. Cámbialos, o graba tu propio gesto, en Efectos."))
+                    point("photo", tr("Para los efectos que te quitan de la imagen, captura antes el fondo sin ti, en Cámara."))
                 }
             }
         }
@@ -180,27 +180,27 @@ struct Onboarding: View {
     @ViewBuilder private var buttons: some View {
         switch step {
         case 0:
-            Button("Empezar") { go(1) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            Button(tr("Empezar")) { go(1) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
         case 1:
             if engine.access == .asking {
-                Button("Permitir cámara") { engine.start() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(tr("Permitir cámara")) { engine.start() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             } else {
-                Button("Continuar") { go(2) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(tr("Continuar")) { go(2) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             }
         case 2:
             if case .ready = camera.state {
-                Button("Continuar") { go(3) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(tr("Continuar")) { go(3) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             } else {
-                Button("Más tarde") { go(3) }
+                Button(tr("Más tarde")) { go(3) }
             }
         case 3:
             if engine.practiceHits >= Engine.practiceGoal {
-                Button("Continuar") { go(4) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(tr("Continuar")) { go(4) }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
             } else {
-                Button("Saltar") { go(4) }
+                Button(tr("Saltar")) { go(4) }
             }
         default:
-            Button("Abrir Kawaru", action: finish).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            Button(tr("Abrir Kawaru"), action: finish).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
         }
     }
 }

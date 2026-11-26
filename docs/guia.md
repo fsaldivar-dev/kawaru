@@ -1,3 +1,5 @@
+**Español** · [English](guia.en.md) · [Português](guia.pt-BR.md) · [Français](guia.fr.md) · [日本語](guia.ja.md) · [简体中文](guia.zh-Hans.md) · [한국어](guia.ko.md)
+
 # Guía de uso de Kawaru
 
 Todo lo que necesitas para sacarle partido, de la instalación a tu primera llamada.
@@ -16,12 +18,13 @@ Todo lo que necesitas para sacarle partido, de la instalación a tu primera llam
 
 ## Instalar
 
-1. Descarga `Kawaru-0.1.0.dmg` desde la [página de versiones](https://github.com/fsaldivar-dev/kawaru/releases/latest).
+1. Descarga `Kawaru-0.2.0.dmg` desde la [página de versiones](https://github.com/fsaldivar-dev/kawaru/releases/latest).
 2. Ábrelo y arrastra **Kawaru** a la carpeta **Aplicaciones**. Tiene que estar ahí: macOS solo deja
    instalar una cámara virtual a las apps de esa carpeta.
 3. Abre Kawaru desde Aplicaciones.
 
-Necesitas macOS 14 o posterior.
+Necesitas macOS 14 o posterior. Kawaru usa el idioma de tu Mac: español, inglés, portugués, francés, japonés,
+chino simplificado o coreano.
 
 ## El tutorial de bienvenida
 

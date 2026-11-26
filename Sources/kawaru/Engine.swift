@@ -114,7 +114,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     func title(of trigger: Trigger) -> String {
         switch trigger {
         case .effect(let effect): effect.title
-        case .caption(let id): rotulos.first { $0.id == id }.map { $0.title.isEmpty ? $0.kind.title : $0.title } ?? "el rótulo"
+        case .caption(let id): rotulos.first { $0.id == id }.map { $0.title.isEmpty ? $0.kind.title : $0.title } ?? tr("el rótulo")
         }
     }
 
@@ -175,7 +175,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         guard recording == effect else { return }
         recording = nil
         guard let pose else {
-            recordProblem = "No vi tus manos con claridad mientras grababa. Ponlas frente a la cámara, quietas, e inténtalo de nuevo."
+            recordProblem = tr("No vi tus manos con claridad mientras grababa. Ponlas frente a la cámara, quietas, e inténtalo de nuevo.")
             return
         }
         poses[effect] = pose

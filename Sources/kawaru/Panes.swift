@@ -93,11 +93,11 @@ struct EffectCard: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(effect.title).font(.headline).lineLimit(1)
-                    Text(gesture == .none ? "Solo con atajo" : gesture.title).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                    Text(gesture == .none ? tr("Solo con atajo") : gesture.title).font(.callout).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 6)
                 if on {
-                    Text("Activo").font(.caption.weight(.semibold)).foregroundStyle(.green)
+                    Text(tr("Activo")).font(.caption.weight(.semibold)).foregroundStyle(.green)
                         .padding(.horizontal, 7).padding(.vertical, 2).background(.green.opacity(0.14), in: Capsule())
                 } else {
                     Text(effect.shortcut).font(.callout.monospaced()).foregroundStyle(.tertiary)
@@ -147,17 +147,17 @@ struct EffectDetail: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .guideSpot(.film, in: guide)
                     .onReceive(flip) { _ in withAnimation(.easeInOut(duration: 0.45)) { showingAfter.toggle() } }
-                    .accessibilityLabel("Vista previa de \(effect.title)")
+                    .accessibilityLabel(tr("Vista previa de %@", effect.title))
                     Text(effect.title).font(.title3.weight(.semibold))
                     Text(effect.detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     HStack {
-                        Button(engine.look == effect.look ? "Quitar" : "Probar en vivo") {
+                        Button(engine.look == effect.look ? tr("Quitar") : tr("Probar en vivo")) {
                             engine.toggle(effect)
                             section = .live
                         }
                         .buttonStyle(.borderedProminent)
                         .guideSpot(.tryLive, in: guide)
-                        Button("Practicar el gesto") { engine.startPractice(for: [effect]) }
+                        Button(tr("Practicar el gesto")) { engine.startPractice(for: [effect]) }
                             .disabled(gesture == Gesture.none)
                             .guideSpot(.practise, in: guide)
                     }
@@ -166,8 +166,8 @@ struct EffectDetail: View {
                 .padding(.vertical, 4)
             }
 
-            SwiftUI.Section("Cómo se activa") {
-                Picker("Posición de manos", selection: Binding(get: { gesture }, set: { engine.commands[effect] = $0 })) {
+            SwiftUI.Section(tr("Cómo se activa")) {
+                Picker(tr("Posición de manos"), selection: Binding(get: { gesture }, set: { engine.commands[effect] = $0 })) {
                     // The recorded one is offered only once there is a recording for this effect.
                     ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[.effect(effect)] != nil }) { gesture in Text(gesture.title).tag(gesture) }
                 }
@@ -179,24 +179,24 @@ struct EffectDetail: View {
                 if gesture == .custom, let photo = engine.posePhotos[.effect(effect)] {
                     Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .accessibilityLabel("Foto de ti haciendo la posición grabada")
+                        .accessibilityLabel(tr("Foto de ti haciendo la posición grabada"))
                 }
-                LabeledContent(engine.poses[.effect(effect)].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
-                    Button(engine.poses[.effect(effect)] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: .effect(effect)) }
+                LabeledContent(engine.poses[.effect(effect)].map { tr("Tu posición: %@", $0.summary.lowercased()) } ?? tr("Tu propia posición")) {
+                    Button(engine.poses[.effect(effect)] == nil ? tr("Grabar…") : tr("Volver a grabar…")) { engine.startRecording(for: .effect(effect)) }
                 }
                 .guideSpot(.record, in: guide)
-                LabeledContent("Atajo de teclado") {
+                LabeledContent(tr("Atajo de teclado")) {
                     Text(effect.shortcut).font(.body.monospaced()).foregroundStyle(.secondary)
                 }
                 .guideSpot(.shortcut, in: guide)
                 if let other = clash {
-                    Label(gesture == .custom ? "Tu posición se parece demasiado a la de «\(other)»: Kawaru no las distingue. Graba una distinta." : "«\(other)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
+                    Label(gesture == .custom ? tr("Tu posición se parece demasiado a la de «%@»: Kawaru no las distingue. Graba una distinta.", other) : tr("«%@» usa la misma posición: se activará ese y no este.", other), systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
             }
 
             if [.away, .question, .confetti, .breakTime].contains(effect) {
-                SwiftUI.Section(effect == .breakTime ? "Duración" : "Texto") {
+                SwiftUI.Section(effect == .breakTime ? tr("Duración") : tr("Texto")) {
                     WordingFields(effect: effect)
                 }
             }
@@ -224,48 +224,48 @@ struct CameraView: View {
         Form {
             SwiftUI.Section {
                 if engine.sources.isEmpty {
-                    LabeledContent("Cámara", value: engine.access == .denied ? "Sin permiso" : "No se encontró ninguna")
+                    LabeledContent(tr("Cámara"), value: engine.access == .denied ? tr("Sin permiso") : tr("No se encontró ninguna"))
                 } else {
-                    Picker("Cámara", selection: Binding(get: { engine.sourceID }, set: { engine.selectSource($0) })) {
+                    Picker(tr("Cámara"), selection: Binding(get: { engine.sourceID }, set: { engine.selectSource($0) })) {
                         ForEach(engine.sources) { source in Text(source.name).tag(source.id) }
                     }
                 }
                 if engine.fps > 0 {
-                    LabeledContent("Rendimiento", value: "\(engine.fps) fps · \(Int(engine.milliseconds.rounded())) ms por fotograma")
+                    LabeledContent(tr("Rendimiento"), value: tr("%lld fps · %lld ms por fotograma", engine.fps, Int(engine.milliseconds.rounded())))
                 }
             } header: {
-                Text("Tu cámara")
+                Text(tr("Tu cámara"))
             } footer: {
-                Text("La imagen se procesa en tu Mac y no se envía a ningún lado. Lo único que se guarda, y solo en este Mac, es la foto que se toma al grabar una posición de manos.").frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                Text(tr("La imagen se procesa en tu Mac y no se envía a ningún lado. Lo único que se guarda, y solo en este Mac, es la foto que se toma al grabar una posición de manos.")).frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
             }
 
             SwiftUI.Section {
                 LabeledContent {
-                    Button(engine.hasBackground ? "Volver a capturar" : "Capturar fondo") { engine.captureBackground() }
+                    Button(engine.hasBackground ? tr("Volver a capturar") : tr("Capturar fondo")) { engine.captureBackground() }
                         .disabled(engine.access != .granted || engine.countdown != nil)
                 } label: {
                     Text(backgroundState)
                 }
             } header: {
-                Text("Fondo")
+                Text(tr("Fondo"))
             } footer: {
-                Text("Los efectos que te quitan de la imagen necesitan una foto del fondo sin ti. Pulsa y sal del cuadro: se toma a los tres segundos y solo vive en memoria. Repítela si mueves la cámara o cambias de cámara.").frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                Text(tr("Los efectos que te quitan de la imagen necesitan una foto del fondo sin ti. Pulsa y sal del cuadro: se toma a los tres segundos y solo vive en memoria. Repítela si mueves la cámara o cambias de cámara.")).frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
             }
 
             SwiftUI.Section {
-                LabeledContent("Estado") { VirtualCameraControl(camera: camera) }
+                LabeledContent(tr("Estado")) { VirtualCameraControl(camera: camera) }
             } header: {
-                Text("Cámara virtual")
+                Text(tr("Cámara virtual"))
             } footer: {
-                Text("En Meet, Zoom, Teams o cualquier app de video, elige la cámara «Kawaru». Los demás verán lo mismo que la sección En vivo.").frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                Text(tr("En Meet, Zoom, Teams o cualquier app de video, elige la cámara «Kawaru». Los demás verán lo mismo que la sección En vivo.")).frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
             }
         }
         .formStyle(.grouped)
     }
 
     private var backgroundState: String {
-        if !engine.hasBackground { return "Sin capturar" }
-        return engine.backgroundHasPerson ? "Capturado, pero saliste en la foto" : "Capturado"
+        if !engine.hasBackground { return tr("Sin capturar") }
+        return engine.backgroundHasPerson ? tr("Capturado, pero saliste en la foto") : tr("Capturado")
     }
 }
 
@@ -288,12 +288,12 @@ struct AboutView: View {
             Spacer()
             Image(nsImage: AppIcon.image).resizable().frame(width: 128, height: 128)
             Text("Kawaru").font(.system(size: 34, weight: .bold, design: .rounded)).padding(.top, 10)
-            Text("Versión \(version)").font(.callout).foregroundStyle(.secondary).padding(.top, 2)
-            Text("Efectos para tus videollamadas, con un gesto de la mano.")
+            Text(tr("Versión %@", version)).font(.callout).foregroundStyle(.secondary).padding(.top, 2)
+            Text(tr("Efectos para tus videollamadas, con un gesto de la mano."))
                 .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.top, 14)
 
             VStack(spacing: 4) {
-                Text("Creado por").font(.callout).foregroundStyle(.secondary)
+                Text(tr("Creado por")).font(.callout).foregroundStyle(.secondary)
                 Text("Francisco Javier Saldivar Rubio").font(.title3.weight(.semibold))
             }
             .padding(.top, 34)
@@ -304,7 +304,7 @@ struct AboutView: View {
                 link("fsaldivar.dev@gmail.com", "envelope", "mailto:fsaldivar.dev@gmail.com")
             }
             .padding(.top, 16)
-            Button("Ver el tutorial de bienvenida", action: tour).buttonStyle(.link).padding(.top, 22)
+            Button(tr("Ver el tutorial de bienvenida"), action: tour).buttonStyle(.link).padding(.top, 22)
             Spacer()
             Spacer()
         }

@@ -24,7 +24,7 @@ enum Overlays {
                              fit: CGFloat = .infinity) {
         func set(_ size: CGFloat) -> (CTLine, CGFloat) {
             let attributes: [NSAttributedString.Key: Any] = [
-                NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName(name as CFString, size, nil),
+                NSAttributedString.Key(kCTFontAttributeName as String): lettering(name, size, for: string),
                 NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
             ]
             let line = CTLineCreateWithAttributedString(NSAttributedString(string: string, attributes: attributes))
@@ -109,10 +109,10 @@ enum Overlays {
         canvas(w, h) { ctx in
             let W = CGFloat(w), H = CGFloat(h), white = color(0xffffff, 0.96)
             if left <= 0 {
-                text(ctx, "¡Volvemos!", font: "MarkerFelt-Wide", size: H * 0.2, color: white, x: W / 2, y: H * 0.43)
+                text(ctx, tr("¡Volvemos!"), font: "MarkerFelt-Wide", size: H * 0.2, color: white, x: W / 2, y: H * 0.43)
                 return
             }
-            text(ctx, "Descanso", font: "MarkerFelt-Wide", size: H * 0.1, color: color(0xffffff, 0.8), x: W / 2, y: H * 0.7)
+            text(ctx, tr("Descanso"), font: "MarkerFelt-Wide", size: H * 0.1, color: color(0xffffff, 0.8), x: W / 2, y: H * 0.7)
             text(ctx, String(format: "%d:%02d", left / 60, left % 60), font: "HelveticaNeue-Bold", size: H * 0.3, color: white, x: W / 2, y: H * 0.36)
             // How much of the break is left, as a bar.
             let bar = CGRect(x: W * 0.3, y: H * 0.24, width: W * 0.4, height: 10)
