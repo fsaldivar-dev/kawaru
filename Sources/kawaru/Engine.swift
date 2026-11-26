@@ -141,7 +141,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
         if let data = try? JSONEncoder().encode(pose) { UserDefaults.standard.set(data, forKey: "pose." + effect.rawValue) }
         UserDefaults.standard.removeObject(forKey: "poses." + effect.rawValue)
-        queue.async { self.templates[effect] = [pose]; self.teaching = effect; self.taught = [] }
+        queue.async { self.templates[effect] = [pose]; self.teaching = effect; self.taught = []; self.teachingStarts = true }
         commands[effect] = .custom
         // Straight into three repetitions. They do not test the first take: each one is kept as a variation,
         // so the position is learnt the way the user really makes it.
@@ -225,6 +225,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var templates = Engine.savedVariants()
     /// The effect whose repetitions are being kept as variations, and the frames of the one in progress.
     private var teaching: Effect?
+    /// Set when the repetitions begin: the hands are still in the first take's position and have to be let
+    /// go before a repetition counts, or the first one would be the same take again.
+    private var teachingStarts = false
     private var taught: [(hands: [HandShape], face: CGRect?)] = []
     private var practisingEffect: Effect?
     private var sampling: Effect?
@@ -398,6 +401,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             var present = target == .custom ? (practisingEffect.map(recorded) ?? false) : seen.contains(target)
             if let effect = teaching, effect == practisingEffect, let first = templates[effect]?.first {
                 // Teaching variations: anything roughly like the first take counts, and its frames are kept.
+                if teachingStarts { teachingStarts = false; practiceMeter.standDown(now: began) }
                 present = first.resembles(shapes, aspect: aspect)
                 if present { taught.append((hands: shapes, face: lastFace)) } else if practiceMeter.progress == 0 { taught = [] }
             }
