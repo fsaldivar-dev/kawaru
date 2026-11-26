@@ -95,7 +95,9 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         var result: [Trigger: [PoseTemplate]] = [:]
         for (effect, first) in savedPoses() {
             let more = UserDefaults.standard.data(forKey: "poses." + effect.key).flatMap { try? JSONDecoder().decode([PoseTemplate].self, from: $0) }
-            result[effect] = more ?? [first]
+            // Takes that are not the same position as the first are dropped: earlier versions kept whatever the
+            // hand was doing during a repetition, and those made the gesture go off for other positions.
+            result[effect] = [first] + (more ?? []).dropFirst().filter { first.sameShape(as: $0) }
         }
         return result
     }
@@ -570,7 +572,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             }
             if practiceMeter.update(present: present, now: began) {
                 if let effect = teaching, effect == practisingEffect {
-                    if let variant = PoseTemplate.make(from: taught, aspect: aspect, atLeast: 6), variant.hands.count == templates[effect]?.first?.hands.count {
+                    if let variant = PoseTemplate.make(from: taught, aspect: aspect, atLeast: 6), let first = templates[effect]?.first, first.sameShape(as: variant) {
                         templates[effect]?.append(variant)
                         let all = templates[effect] ?? []
                         print(String(format: "pose: variante %d para %@, tolerancia %.2f", all.count - 1, effect.key, variant.tolerance)); fflush(stdout)

@@ -89,14 +89,35 @@ struct HandShape {
         }
         guard sizeL > 0, sizeT > 0 else { return live }
         let turn = max(-0.6, min(0.6, atan2(cross, dot)))               // about 35 degrees either way
-        let scale = max(0.75, min(1.3, (sizeT / sizeL).squareRoot()))
+        // Only a little resizing: enough for a palm tipped towards the camera, not enough to turn an open hand
+        // into a closed one.
+        let scale = max(0.88, min(1.14, (sizeT / sizeL).squareRoot()))
         let c = cos(turn) * scale, s = sin(turn) * scale
         return live.map { $0.map { CGPoint(x: $0.x * c - $0.y * s, y: $0.x * s + $0.y * c) } }
     }
 
-    static func fits(_ template: [CGPoint?], _ live: [CGPoint?], tolerance: CGFloat) -> Bool {
+    /// Every finger is doing the same thing in both hands: its tip is in about the same place. The averages
+    /// above cannot tell this by themselves: with one finger up instead of five, most of the twenty-one joints
+    /// (the knuckles, the wrist, that one finger) still agree, and an open hand passed for a pointing one.
+    /// The limit comes from the user's own repetitions in the log: the same position repeated moved a
+    /// fingertip by up to 0.55 palm lengths, and a finger doing something else by 0.6 and more. A finger
+    /// Vision cannot see counts against the match, one at most being forgiven.
+    static func fingersAgree(_ template: [CGPoint?], _ live: [CGPoint?], slack: CGFloat = 1) -> Bool {
+        var unseen = 0
+        for finger in 0..<5 {
+            let tip = 4 + finger * 4
+            guard let t = template[tip] else { continue }
+            guard let l = live[tip] else { unseen += 1; continue }
+            let thumb: CGFloat = finger == 0 ? 1.3 : 1   // the thumb is the least steady in Vision
+            if hypot(t.x - l.x, t.y - l.y) > 0.6 * thumb * slack { return false }
+        }
+        return unseen <= 1
+    }
+
+    static func fits(_ template: [CGPoint?], _ live: [CGPoint?], tolerance: CGFloat, slack: CGFloat = 1) -> Bool {
         let live = fitted(template, live)
         return distance(template, live) < tolerance && worstFinger(template, live) < tolerance * 1.45
+            && fingersAgree(template, live, slack: min(slack, 1.15))
     }
 }
 
@@ -158,6 +179,14 @@ struct PoseTemplate: Codable, Equatable {
         return near.joints < 0.6
     }
 
+    /// Another take of the same position: the same hands, each finger doing the same. A repetition that is not
+    /// this is a different position, and is not kept as a variation.
+    func sameShape(as other: PoseTemplate) -> Bool {
+        guard hands.count == other.hands.count else { return false }
+        func shape(_ t: PoseTemplate, _ i: Int) -> [CGPoint?] { t.hands[i].map { $0.map { CGPoint(x: $0[0], y: $0[1]) } } }
+        return hands.indices.allSatisfy { HandShape.fits(shape(self, $0), shape(other, $0), tolerance: CGFloat(Self.loosest) * 1.15) }
+    }
+
     /// Upper limit on how loose a match may be, whatever was measured while recording. The first real recordings
     /// all came out at the old limit of 0.5, and at that a one-hand position passed for almost any hand.
     static let loosest = 0.36
@@ -174,12 +203,12 @@ struct PoseTemplate: Codable, Equatable {
         guard live.count == hands.count else { return false }
         if hands.count == 2 {
             guard let gap else { return false }
-            let fit = HandShape.fits(shape(0), live[0].points, tolerance: tolerance * 1.15) && HandShape.fits(shape(1), live[1].points, tolerance: tolerance * 1.15)
+            let fit = HandShape.fits(shape(0), live[0].points, tolerance: tolerance * 1.15, slack: slack) && HandShape.fits(shape(1), live[1].points, tolerance: tolerance * 1.15, slack: slack)
             let dx = (live[1].centre.x - live[0].centre.x) * flip / live[0].palm, dy = (live[1].centre.y - live[0].centre.y) / live[0].palm
             return fit && hypot(dx - gap[0], dy - gap[1]) < 1.2 * slack
         }
         return live.contains { hand in
-            guard HandShape.fits(shape(0), hand.points, tolerance: tolerance) else { return false }
+            guard HandShape.fits(shape(0), hand.points, tolerance: tolerance, slack: slack) else { return false }
             guard let faceOffset else { return true }
             guard let face else { return false }
             let width = face.width * aspect
