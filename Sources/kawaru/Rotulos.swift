@@ -8,7 +8,7 @@ import ImageIO
 /// several can be up at once, and each is the user's own: their words, their theme, where and how it comes in.
 struct Rotulo: Codable, Identifiable, Hashable {
     enum Kind: String, Codable, CaseIterable, Identifiable {
-        case lowerThird, banner, badge, card
+        case lowerThird, banner, badge, card, social
 
         var id: String { rawValue }
 
@@ -18,6 +18,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
             case .banner: "Banner"
             case .badge: "Insignia"
             case .card: "Tarjeta completa"
+            case .social: "Red social"
             }
         }
 
@@ -27,6 +28,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
             case .banner: "rectangle.topthird.inset.filled"
             case .badge: "tag"
             case .card: "rectangle.inset.filled"
+            case .social: "at"
             }
         }
 
@@ -35,12 +37,12 @@ struct Rotulo: Codable, Identifiable, Hashable {
             switch self {
             case .lowerThird: [.bottomLeft, .bottomRight, .topLeft, .topRight]
             case .banner: [.top, .bottom]
-            case .badge: [.topRight, .topLeft, .bottomRight, .bottomLeft]
+            case .badge, .social: [.topRight, .topLeft, .bottomRight, .bottomLeft]
             case .card: []
             }
         }
 
-        var hasSubtitle: Bool { self != .badge }
+        var hasSubtitle: Bool { self != .badge && self != .social }
 
         /// What the two lines of text are called in the editor.
         var labels: (String, String) {
@@ -49,6 +51,64 @@ struct Rotulo: Codable, Identifiable, Hashable {
             case .banner: ("Titular", "Texto")
             case .badge: ("Texto", "")
             case .card: ("Título", "Subtítulo")
+            case .social: ("Usuario", "")
+            }
+        }
+    }
+
+    /// Where a social caption points. Shown as the network's initials on its colour: no logo artwork is shipped.
+    enum Network: String, Codable, CaseIterable, Identifiable {
+        case linkedin, github, x, instagram, youtube, twitch, tiktok, web
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .linkedin: "LinkedIn"
+            case .github: "GitHub"
+            case .x: "X"
+            case .instagram: "Instagram"
+            case .youtube: "YouTube"
+            case .twitch: "Twitch"
+            case .tiktok: "TikTok"
+            case .web: "Sitio web"
+            }
+        }
+
+        var initials: String {
+            switch self {
+            case .linkedin: "in"
+            case .github: "GH"
+            case .x: "X"
+            case .instagram: "IG"
+            case .youtube: "YT"
+            case .twitch: "Tw"
+            case .tiktok: "TT"
+            case .web: "www"
+            }
+        }
+
+        var tint: UInt32 {
+            switch self {
+            case .linkedin: 0x0a66c2
+            case .github: 0x24292f
+            case .x: 0x000000
+            case .instagram: 0xd62976
+            case .youtube: 0xff0000
+            case .twitch: 0x9146ff
+            case .tiktok: 0x111111
+            case .web: 0x2f7d5b
+            }
+        }
+
+        /// What the user's name there usually looks like, as the field's hint.
+        var example: String {
+            switch self {
+            case .linkedin: "/in/tu-nombre"
+            case .github, .x, .instagram, .tiktok: "@tu_usuario"
+            case .youtube: "@tu_canal"
+            case .twitch: "/tu_canal"
+            case .web: "tusitio.com"
             }
         }
     }
@@ -118,6 +178,10 @@ struct Rotulo: Codable, Identifiable, Hashable {
     var gestureName: String?
     /// Where the user dragged it to: its centre, 0...1 across and down the picture. Nil keeps it at `place`.
     var spot: [Double]?
+    /// For a social caption: which network (a `Network`'s raw value).
+    var networkName: String?
+
+    var network: Network { networkName.flatMap(Network.init(rawValue:)) ?? .linkedin }
 
     /// What a new caption of each kind starts as.
     static func new(_ kind: Kind, theme: Theme = .minimal) -> Rotulo {
@@ -126,6 +190,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
         case .banner: Rotulo(kind: kind, title: "Tema de hoy", subtitle: "Escribe aquí de qué va la reunión", theme: theme, place: .top)
         case .badge: Rotulo(kind: kind, title: "En vivo", theme: theme, place: .topRight, entrance: .pop)
         case .card: Rotulo(kind: kind, title: "Empezamos pronto", subtitle: "Vuelvo en un momento", theme: theme, place: .top, entrance: .fade)
+        case .social: Rotulo(kind: kind, title: "/in/tu-nombre", theme: theme, place: .topRight, networkName: Network.linkedin.rawValue)
         }
     }
 
@@ -288,7 +353,7 @@ enum Rotulos {
 
     /// The caption drawn at its final size, cached until its words or looks change.
     static func image(_ r: Rotulo, unit: CGFloat, frame: CGSize) -> CGImage {
-        let key = "\(r.kind.rawValue)|\(r.theme.rawValue)|\(r.title)|\(r.subtitle)|\(unit)|\(frame.width)x\(frame.height)"
+        let key = "\(r.kind.rawValue)|\(r.theme.rawValue)|\(r.title)|\(r.subtitle)|\(r.networkName ?? "")|\(unit)|\(frame.width)x\(frame.height)"
         lock.lock(); defer { lock.unlock() }
         if let made = cache[key] { return made }
         if cache.count > 80 { cache.removeAll() }
@@ -298,6 +363,7 @@ enum Rotulos {
         case .banner: made = banner(r, unit, frame.width)
         case .badge: made = badge(r, unit)
         case .card: made = card(r, unit, frame)
+        case .social: made = social(r, unit)
         }
         cache[key] = made
         return made
@@ -566,6 +632,58 @@ enum Rotulos {
             return canvas(size, unit) { ctx in
                 plank(ctx, CGRect(origin: .zero, size: size))
                 put(words, ctx, x: 24, y: 19)
+            }
+        }
+    }
+
+    /// A social handle: the network's initials on its colour, and the user's name there.
+    private static func social(_ r: Rotulo, _ unit: CGFloat) -> CGImage {
+        let net = r.network
+        let mark = line(net.initials, "AvenirNext-Bold", net.initials.count > 2 ? 13 : 18, color(0xffffff))
+        // The tile with the initials, `side` square, drawn with its corner at (x, y).
+        func tile(_ ctx: CGContext, x: CGFloat, y: CGFloat, side: CGFloat) {
+            fill(ctx, rounded(CGRect(x: x, y: y, width: side, height: side), side * 0.26), color(net.tint))
+            put(mark, ctx, x: x + (side - width(mark)) / 2, y: y + side / 2 - (net.initials.count > 2 ? 5 : 6.5))
+        }
+        switch r.theme {
+        case .minimal:
+            let words = fitted(r.title, "AvenirNext-Medium", 20, color(0x141416), fit: 420)
+            let size = CGSize(width: width(words) + 76, height: 48)
+            return canvas(size, unit) { ctx in
+                ctx.saveGState(); ctx.setShadow(offset: CGSize(width: 0, height: -3 * unit), blur: 12 * unit, color: color(0x000000, 0.2))
+                fill(ctx, rounded(CGRect(origin: .zero, size: size), 24), color(0xffffff, 0.95)); ctx.restoreGState()
+                tile(ctx, x: 9, y: 9, side: 30)
+                put(words, ctx, x: 50, y: 16)
+            }
+        case .corporate:
+            let words = fitted(r.title, "AvenirNext-DemiBold", 19, color(0xffffff), fit: 420)
+            let size = CGSize(width: width(words) + 76, height: 46)
+            return canvas(size, unit) { ctx in
+                fill(ctx, rounded(CGRect(origin: .zero, size: size), 6), color(0x102a52))
+                ctx.setFillColor(color(0xffb020)); ctx.fill(CGRect(x: 0, y: 0, width: size.width, height: 4))
+                tile(ctx, x: 10, y: 11, side: 28)
+                put(words, ctx, x: 50, y: 17)
+            }
+        case .neon:
+            let words = fitted(r.title.uppercased(), "AvenirNext-Bold", 18, color(0x00e5ff), fit: 420, tracking: 1.2)
+            let size = CGSize(width: width(words) + 96, height: 66)
+            return canvas(size, unit) { ctx in
+                if let art = plate("neon-insignia") {
+                    draw(art, ctx, in: CGRect(origin: .zero, size: size))
+                } else {
+                    let box = rounded(CGRect(origin: .zero, size: size), 8)
+                    fill(ctx, box, color(0x0c061c, 0.86)); glow(ctx, box, color(0x00e5ff))
+                }
+                tile(ctx, x: 22, y: 19, side: 28)
+                put(words, ctx, x: 60, y: 26)
+            }
+        case .wood:
+            let words = fitted(r.title, "MarkerFelt-Wide", 26, color(0x2b2118), fit: 420)
+            let size = CGSize(width: width(words) + 132, height: 76)
+            return canvas(size, unit) { ctx in
+                if let art = plate("madera-insignia") { draw(art, ctx, in: CGRect(origin: .zero, size: size)) } else { plank(ctx, CGRect(origin: .zero, size: size)) }
+                tile(ctx, x: 44, y: 25, side: 28)
+                put(words, ctx, x: 82, y: 31)
             }
         }
     }

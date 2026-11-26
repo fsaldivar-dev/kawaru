@@ -173,7 +173,12 @@ struct RotuloEditor: View {
                 Picker("Tipo", selection: Binding(get: { rotulo.kind }, set: { rotulo.become($0) })) {
                     ForEach(Rotulo.Kind.allCases) { Text($0.title).tag($0) }
                 }
-                TextField(rotulo.kind.labels.0, text: $rotulo.title)
+                if rotulo.kind == .social {
+                    Picker("Red", selection: Binding(get: { rotulo.network }, set: { rotulo.networkName = $0.rawValue })) {
+                        ForEach(Rotulo.Network.allCases) { Text($0.title).tag($0) }
+                    }
+                }
+                TextField(rotulo.kind.labels.0, text: $rotulo.title, prompt: rotulo.kind == .social ? Text(rotulo.network.example) : nil)
                 if rotulo.kind.hasSubtitle { TextField(rotulo.kind.labels.1, text: $rotulo.subtitle) }
             }
 
