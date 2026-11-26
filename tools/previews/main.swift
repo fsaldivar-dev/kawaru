@@ -1,6 +1,7 @@
 // Makes the gallery's preview pictures: runs a still "webcam frame" of a model through the app's own
 // compositor, with Vision's real person mask, exactly as a live frame would go, and saves what comes out.
-// Built and run by scripts/previews.sh. Usage: previews <persona.png> <fondo.png> <output folder>
+// Built and run by scripts/previews.sh. Usage: previews <fondo.png> <output folder> <persona.png> [more people...]
+// With several people in the same room, the effects take turns between them.
 import AVFoundation
 import CoreImage
 import CoreVideo
@@ -43,9 +44,10 @@ func save(_ buffer: CVPixelBuffer, _ path: String) {
 }
 
 let arguments = CommandLine.arguments
-guard arguments.count == 4 else { print("uso: previews <persona> <fondo> <carpeta>"); exit(2) }
-let person = load(arguments[1]), room = load(arguments[2])
-let personMask = mask(of: person), roomMask = mask(of: room)
+guard arguments.count >= 4 else { print("uso: previews <fondo> <carpeta> <persona> [persona...]"); exit(2) }
+let room = load(arguments[1]), folder = arguments[2]
+let roomMask = mask(of: room)
+let people = arguments[3...].map { path -> (frame: CVPixelBuffer, mask: CVPixelBuffer) in let frame = load(path); return (frame, mask(of: frame)) }
 
 /// A short film of the effect being switched on and off again, for the gallery to loop.
 final class Film {
@@ -87,7 +89,8 @@ let shots: [(name: String, look: Look, on: Int, after: Int, still: Int)] = [
     ("away", .away, 80, 30, 45), ("question", .question, 80, 25, 45), ("confetti", .confetti, 118, 12, 48),
     ("breakTime", .breakTime, 75, 25, 45), ("spotlight", .spotlight, 75, 25, 45),
 ]
-for shot in shots {
+for (index, shot) in shots.enumerated() {
+    let person = people[index % people.count].frame, personMask = people[index % people.count].mask
     let compositor = Compositor()
     var now = 1000.0
     func step(_ frame: CVPixelBuffer, _ mask: CVPixelBuffer, _ look: Look, capture: Bool = false) -> CVPixelBuffer {
@@ -98,12 +101,12 @@ for shot in shots {
     _ = step(room, roomMask, .person, capture: true)
     for _ in 0..<8 { _ = step(room, roomMask, .person) }
     for _ in 0..<20 { _ = step(person, personMask, .person) }
-    let film = Film(arguments[3] + "/" + shot.name + ".mp4")
+    let film = Film(folder + "/" + shot.name + ".mp4")
     for _ in 0..<18 { film.add(step(person, personMask, .person)) }
     for i in 1...shot.on {
         let out = step(person, personMask, shot.look)
         film.add(out)
-        if i == shot.still { save(out, arguments[3] + "/" + shot.name + ".jpg") }
+        if i == shot.still { save(out, folder + "/" + shot.name + ".jpg") }
     }
     for _ in 0..<shot.after { film.add(step(person, personMask, .person)) }
     film.finish()

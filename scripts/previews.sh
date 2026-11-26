@@ -7,4 +7,7 @@ cd "$(dirname "$0")/.."
 mkdir -p build assets/efectos
 swiftc -O -o build/previews tools/previews/main.swift \
   Sources/kawaru/{Compositor,Trunk,Smoke,Card,Overlays,Wording}.swift
-build/previews assets/modelo/persona.png assets/modelo/fondo.png assets/efectos
+# Everyone photographed in the same empty room (fondo.png) takes a turn: one effect each, in order.
+people=(assets/modelo/persona.png)
+[[ -f assets/modelo/mujer.png ]] && people+=(assets/modelo/mujer.png)
+build/previews assets/modelo/fondo.png assets/efectos "${people[@]}"
