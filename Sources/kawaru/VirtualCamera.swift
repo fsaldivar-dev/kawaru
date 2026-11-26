@@ -161,6 +161,22 @@ final class VirtualCamera: NSObject, ObservableObject, OSSystemExtensionRequestD
 
     // MARK: Finding the device and its sink
 
+    /// How many apps are showing the Kawaru camera right now, as the extension reports it. Nil when it cannot be
+    /// read (no extension, or one from before it reported this): the caller then keeps the camera on, as before.
+    func watchers() -> Int? {
+        lock.lock(); let device = self.device; lock.unlock()
+        guard device != 0 else { return nil }
+        var address = CMIOObjectPropertyAddress(mSelector: 0x6B776368 /* 'kwch' */, mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+                                                mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain))
+        guard CMIOObjectHasProperty(device, &address) else { return nil }
+        var size: UInt32 = 0
+        guard CMIOObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr, size == UInt32(MemoryLayout<CFString?>.size) else { return nil }
+        var used: UInt32 = 0
+        var text: Unmanaged<CFString>?
+        guard CMIOObjectGetPropertyData(device, &address, 0, nil, size, &used, &text) == noErr, let text else { return nil }
+        return Int(text.takeRetainedValue() as String)
+    }
+
     private func connect() -> Bool {
         guard let found = Self.findDevice() else {
             attempts += 1

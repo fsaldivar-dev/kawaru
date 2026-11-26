@@ -232,6 +232,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     private var practisingEffect: Effect?
     private var sampling: Effect?
     private var quiet = false
+    private var listening = UserDefaults.standard.object(forKey: "gesturesOn") as? Bool ?? true
     private var sampleUntil = 0.0
     private var samples: [(hands: [HandShape], face: CGRect?)] = []
     private var resetPlate = false
@@ -246,6 +247,40 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// face and raw (unsteadied) joint distance, and frames that matched. For the log.
     private var closeness: [Effect: (Int, Double, Double, Double, Double, Int)] = [:]
 
+    /// Hand gestures start effects. Off from the menu bar when the hands are busy with something else.
+    @Published var gesturesOn = UserDefaults.standard.object(forKey: "gesturesOn") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(gesturesOn, forKey: "gesturesOn")
+            let on = gesturesOn
+            queue.async { self.listening = on }
+        }
+    }
+    /// The camera is on. It is only on while someone is looking: the window is open, or a call shows the camera.
+    @Published private(set) var cameraOn = true
+    /// Apps showing the Kawaru camera, when the extension can say.
+    @Published private(set) var watchers: Int?
+    private var wanted = true
+    private var pulse: Timer?
+
+    /// Once a second: is anyone looking? If not, the camera goes off, light and all.
+    private func watch() {
+        pulse = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, self.access == .granted else { return }
+            let windowOpen = NSApp.windows.contains { $0.isVisible && $0.canBecomeMain && !$0.isMiniaturized }
+            let count = self.virtualCamera.watchers()
+            if self.watchers != count { self.watchers = count }
+            // Without a count there is no telling whether a call is using the camera, so it stays on.
+            let want = windowOpen || count == nil || (count ?? 0) > 0
+            guard want != self.wanted else { return }
+            self.wanted = want
+            self.cameraOn = want
+            print("camara propia: \(want ? "encendida" : "apagada") (ventana \(windowOpen ? "abierta" : "cerrada"), apps mirando \(count.map(String.init) ?? "?"))"); fflush(stdout)
+            self.queue.async {
+                if want { if !self.session.isRunning { self.session.startRunning() } } else if self.session.isRunning { self.session.stopRunning() }
+            }
+        }
+    }
+
     private var started = false
 
     /// Asks for the camera if it has to, and starts. Safe to call again.
@@ -253,6 +288,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         guard !started else { return }
         started = true
         display.videoGravity = .resizeAspect
+        watch()
         registerShortcuts()
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized: configure()
@@ -326,7 +362,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 if self.session.canAddOutput(output) { self.session.addOutput(output) }
             }
             self.session.commitConfiguration()
-            if !self.session.isRunning { self.session.startRunning() }
+            if self.wanted, !self.session.isRunning { self.session.startRunning() }
         }
     }
 
@@ -435,7 +471,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 shownTip = tip
                 DispatchQueue.main.async { if self.practice == target { self.practiceTip = tip } }
             }
-        } else {
+        } else if listening {
             // Each effect has its own meter. Firing an effect that is on turns it off; firing another one switches.
             // Only one fires per frame, and the rest stand down until their hands let go.
             var firedEffect: Effect?

@@ -56,12 +56,27 @@ final class DeviceSource: NSObject, CMIOExtensionDeviceSource {
         card = Self.drawCard()
     }
 
-    var availableProperties: Set<CMIOExtensionProperty> { [.deviceTransportType, .deviceModel] }
+    /// How many apps are reading the camera, as text, for the Kawaru app: it only needs its own camera on while
+    /// someone is looking. Keep the name in step with Sources/kawaru/VirtualCamera.swift.
+    static let watchersProperty = CMIOExtensionProperty(rawValue: "4cc_kwch_glob_0000")
+    private let watchersLock = NSLock()
+    private var watchersNow = 0
+
+    private func publish(_ count: Int) {
+        watchersLock.lock(); watchersNow = count; watchersLock.unlock()
+        device.notifyPropertiesChanged([Self.watchersProperty: CMIOExtensionPropertyState<AnyObject>(value: "\(count)" as NSString)])
+    }
+
+    var availableProperties: Set<CMIOExtensionProperty> { [.deviceTransportType, .deviceModel, Self.watchersProperty] }
 
     func deviceProperties(forProperties properties: Set<CMIOExtensionProperty>) throws -> CMIOExtensionDeviceProperties {
         let p = CMIOExtensionDeviceProperties(dictionary: [:])
         if properties.contains(.deviceTransportType) { p.transportType = kIOAudioDeviceTransportTypeVirtual }
         if properties.contains(.deviceModel) { p.model = "Kawaru" }
+        if properties.contains(Self.watchersProperty) {
+            watchersLock.lock(); let count = watchersNow; watchersLock.unlock()
+            p.setPropertyState(CMIOExtensionPropertyState<AnyObject>(value: "\(count)" as NSString), forProperty: Self.watchersProperty)
+        }
         return p
     }
 
@@ -72,7 +87,8 @@ final class DeviceSource: NSObject, CMIOExtensionDeviceSource {
     func startWatching() {
         queue.async {
             self.watchers += 1
-            log.info("source: \(self.watchers) app(s) mirando")
+            self.publish(self.watchers)
+            log.info("source: \(self.watchers) app(s) viendo la cámara")
             guard self.timer == nil else { return }
             let t = DispatchSource.makeTimerSource(flags: .strict, queue: self.queue)
             t.schedule(deadline: .now(), repeating: 1.0 / Double(frameRate), leeway: .milliseconds(2))
@@ -85,6 +101,7 @@ final class DeviceSource: NSObject, CMIOExtensionDeviceSource {
     func stopWatching() {
         queue.async {
             self.watchers = max(0, self.watchers - 1)
+            self.publish(self.watchers)
             if self.watchers == 0 { self.timer?.cancel(); self.timer = nil }
         }
     }

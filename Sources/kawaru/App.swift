@@ -20,6 +20,7 @@ struct KawaruApp: App {
         }
         .defaultSize(width: 1080, height: 700)
         .commands {
+            CommandGroup(replacing: .newItem) {}
             CommandGroup(replacing: .appInfo) {
                 Button("Acerca de Kawaru") { touring = false; section = .about }
             }
@@ -28,11 +29,34 @@ struct KawaruApp: App {
                 Button("Recorrido por la ventana") { touring = false; section = .effects; guide.start() }
             }
         }
+
+        // After the window, so the window is still what opens at launch.
+        MenuBarExtra("Kawaru", systemImage: "web.camera") {
+            MenuPanel(engine: engine, camera: engine.virtualCamera)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    /// Closing the window leaves Kawaru in the menu bar, ready for the next call.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Clicking the Dock icon, or opening the app again, brings the window back once it has been closed.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { AppDelegate.showWindow() }
+        return true
+    }
+
+    /// SwiftUI's way of opening the main window, kept from the first time the window is on screen: once it
+    /// is closed there is no window left to bring forward, it has to be opened again.
+    static var open: (() -> Void)?
+
+    static func showWindow() {
+        if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) { open?() }
+        for window in NSApp.windows where window.canBecomeMain { window.makeKeyAndOrderFront(nil) }
+        NSApp.activate(ignoringOtherApps: true)
+    }
 }
 
 /// The parts of the window, listed in the sidebar.
@@ -66,8 +90,13 @@ struct ContentView: View {
     @ObservedObject var guide: Guide
     @Binding var section: Pane
     @Binding var touring: Bool
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        content.onAppear { AppDelegate.open = { openWindow(id: "main") } }
+    }
+
+    @ViewBuilder private var content: some View {
         if touring {
             Onboarding(engine: engine, camera: camera) {
                 UserDefaults.standard.set(true, forKey: "onboarded")
@@ -77,6 +106,9 @@ struct ContentView: View {
                 guide.start()   // straight on to what each part of the window is for
             }
             .frame(minWidth: 900, minHeight: 580)
+        } else if UserDefaults.standard.bool(forKey: "menuPanelPreview") {
+            // `-menuPanelPreview YES`: the menu bar panel in the window, to look at it without the menu bar.
+            MenuPanel(engine: engine, camera: camera).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             window
         }
