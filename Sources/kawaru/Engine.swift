@@ -297,13 +297,15 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         didSet {
             if let data = try? JSONEncoder().encode(rotulos) { UserDefaults.standard.set(data, forKey: "rotulos") }
             let copy = Dictionary(uniqueKeysWithValues: rotulos.map { ($0.id, $0) })
-            queue.async { self.library = copy }
+            let order = rotulos.map(\.id)
+            queue.async { self.library = copy; self.libraryOrder = order }
         }
     }
     /// The captions that are up right now (not the ones on their way out).
     @Published private(set) var captionsUp: Set<UUID> = []
     private var library = Dictionary(uniqueKeysWithValues: Engine.savedRotulos().map { ($0.id, $0) })
     private var showing: [UUID: Rotulos.Showing] = [:]
+    private var libraryOrder = Engine.savedRotulos().map(\.id)
 
     private static func savedRotulos() -> [Rotulo] {
         if let data = UserDefaults.standard.data(forKey: "rotulos"), let saved = try? JSONDecoder().decode([Rotulo].self, from: data) { return saved }
@@ -316,16 +318,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     /// Puts a caption up, or takes it down if it is up.
     func toggle(_ rotulo: Rotulo) {
         let id = rotulo.id
-        queue.async {
-            let now = CACurrentMediaTime()
-            if var item = self.showing[id], item.leaving == nil {
-                item.leaving = now; self.showing[id] = item
-            } else if let fresh = self.library[id] {
-                self.showing[id] = Rotulos.Showing(rotulo: fresh, since: now, leaving: nil)
-            }
-            self.publishCaptions()
-        }
+        queue.async { self.flip(id, now: CACurrentMediaTime()) }
     }
+
+    /// Call on `queue`.
+    private func flip(_ id: UUID, now: Double) {
+        if var item = showing[id], item.leaving == nil {
+            item.leaving = now; showing[id] = item
+        } else if let fresh = library[id] {
+            showing[id] = Rotulos.Showing(rotulo: fresh, since: now, leaving: nil)
+        }
+        publishCaptions()
+    }
+
+    /// One meter per caption that has a gesture, like the effects have.
+    private var captionMeters: [UUID: HoldMeter] = [:]
 
     /// Call on `queue`.
     private func publishCaptions() {
@@ -431,6 +438,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         // always while recording, to find out whether the hand is by the face.
         let usesFace = sampling != nil || practising?.needsFace ?? bindings.values.contains(where: \.needsFace)
             || bindings.contains { $0.value == .custom && (templates[$0.key] ?? []).contains { $0.faceOffset != nil } }
+            || library.values.contains { $0.gestureName.flatMap(Gesture.init(rawValue:))?.needsFace == true }
         let needFace = needHands && usesFace
         var requests: [VNRequest] = []
         if needHands { requests.append(hands) }
@@ -537,9 +545,25 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 if gesture == .custom, present { seenCounts[.custom, default: 0] += 1 }
                 if fired { firedEffect = effect }
             }
+            // The captions that have a gesture, after the effects: an effect with the same gesture goes first.
+            var firedCaption: UUID?
+            for id in libraryOrder {
+                guard let rotulo = library[id] else { continue }
+                guard let gesture = rotulo.gestureName.flatMap(Gesture.init(rawValue:)), gesture != .none, gesture != .custom else { captionMeters[id] = nil; continue }
+                var meter = captionMeters[id] ?? HoldMeter()
+                let fired = firedEffect == nil && firedCaption == nil && meter.update(present: seen.contains(gesture), now: began)
+                captionMeters[id] = meter
+                if meter.progress > progress { progress = meter.progress; held = gesture }
+                if fired { firedCaption = id }
+            }
+            if let firedCaption { flip(firedCaption, now: began) }
             if let firedEffect {
                 current = current == firedEffect.look ? .person : firedEffect.look
                 for effect in Effect.allCases where effect != firedEffect { meters[effect]?.standDown(now: began) }
+            }
+            if firedEffect != nil || firedCaption != nil {
+                for id in captionMeters.keys where id != firedCaption { captionMeters[id]?.standDown(now: began) }
+                if firedCaption != nil { for effect in Effect.allCases { meters[effect]?.standDown(now: began) } }
             }
         }
         for g in seen { seenCounts[g, default: 0] += 1 }

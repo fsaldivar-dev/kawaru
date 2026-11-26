@@ -114,6 +114,8 @@ struct Rotulo: Codable, Identifiable, Hashable {
     /// Seconds it stays up before leaving by itself; 0 stays until it is taken down.
     var seconds: Double = 0
     var scale: Double = 1
+    /// The hand position that puts it up and takes it down (a `Gesture`'s raw value), if it has one.
+    var gestureName: String?
 
     /// What a new caption of each kind starts as.
     static func new(_ kind: Kind, theme: Theme = .minimal) -> Rotulo {

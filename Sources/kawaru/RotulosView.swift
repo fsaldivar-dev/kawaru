@@ -126,6 +126,14 @@ struct RotuloEditor: View {
     @State private var playing: Timer?
 
     private var up: Bool { engine.captionsUp.contains(rotulo.id) }
+    private var gesture: Gesture { rotulo.gestureName.flatMap(Gesture.init(rawValue:)) ?? Gesture.none }
+
+    /// Whatever else answers to the same gesture and would go first: an effect, or a caption listed earlier.
+    private var clash: String? {
+        guard gesture != Gesture.none else { return nil }
+        if let effect = Effect.allCases.first(where: { engine.commands[$0] == gesture }) { return effect.title }
+        return engine.rotulos.prefix(number - 1).first { $0.gestureName == gesture.rawValue }.map { $0.title.isEmpty ? $0.kind.title : $0.title }
+    }
 
     var body: some View {
         Form {
@@ -180,6 +188,23 @@ struct RotuloEditor: View {
                     Text("10 segundos").tag(10.0)
                     Text("30 segundos").tag(30.0)
                     Text("1 minuto").tag(60.0)
+                }
+            }
+
+            Section("Cómo se activa") {
+                Picker("Posición de manos", selection: Binding(get: { gesture }, set: { rotulo.gestureName = $0 == Gesture.none ? nil : $0.rawValue })) {
+                    ForEach(Gesture.allCases.filter { $0 != .custom }) { Text($0.title).tag($0) }
+                }
+                if gesture != Gesture.none {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(gesture.symbol).font(.system(size: 26))
+                        Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button("Practicar el gesto") { engine.startPractice([gesture]) }
+                }
+                if let clash {
+                    Label("«\(clash)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
+                        .font(.callout).foregroundStyle(.orange)
                 }
                 if number <= 9 {
                     LabeledContent("Atajo de teclado") { Text("⌃⌥⇧\(number)").font(.body.monospaced()).foregroundStyle(.secondary) }
