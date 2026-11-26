@@ -5,12 +5,20 @@ import SwiftUI
 struct KawaruApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var engine = Engine()
+    /// `-startPane effects` on the command line opens on that part of the window.
+    @State private var section = UserDefaults.standard.string(forKey: "startPane").flatMap(Pane.init(rawValue:)) ?? .live
 
     var body: some Scene {
         Window("Kawaru", id: "main") {
-            ContentView(engine: engine, camera: engine.virtualCamera).onAppear { engine.start(); engine.virtualCamera.start() }
+            ContentView(engine: engine, camera: engine.virtualCamera, section: $section)
+                .onAppear { engine.start(); engine.virtualCamera.start() }
         }
-        .defaultSize(width: 900, height: 620)
+        .defaultSize(width: 1080, height: 700)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("Acerca de Kawaru") { section = .about }
+            }
+        }
     }
 }
 
@@ -18,10 +26,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
+/// The parts of the window, listed in the sidebar.
+enum Pane: String, CaseIterable, Identifiable {
+    case live, effects, camera, about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .live: "En vivo"
+        case .effects: "Efectos"
+        case .camera: "Cámara"
+        case .about: "Acerca de"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .live: "video"
+        case .effects: "sparkles"
+        case .camera: "web.camera"
+        case .about: "info.circle"
+        }
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var engine: Engine
     @ObservedObject var camera: VirtualCamera
-    @State private var showingCommands = false
+    @Binding var section: Pane
+
+    var body: some View {
+        NavigationSplitView {
+            List(Pane.allCases, selection: Binding(get: { section }, set: { section = $0 ?? .live })) { item in
+                Label(item.title, systemImage: item.symbol).tag(item)
+            }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 240)
+        } detail: {
+            Group {
+                switch section {
+                case .live: LiveView(engine: engine, camera: camera)
+                case .effects: EffectsView(engine: engine, section: $section)
+                case .camera: CameraView(engine: engine, camera: camera, section: $section)
+                case .about: AboutView()
+                }
+            }
+            .navigationTitle(section.title)
+        }
+        .frame(minWidth: 900, minHeight: 580)
+        .alert("No se pudo grabar la posición", isPresented: Binding(get: { engine.recordProblem != nil }, set: { if !$0 { engine.recordProblem = nil } })) {
+            Button("Entendido", role: .cancel) {}
+        } message: {
+            Text(engine.recordProblem ?? "")
+        }
+        .onChange(of: engine.access) { _, access in
+            // The first time the camera is on: walk through the gesture of each effect.
+            if access == .granted, !UserDefaults.standard.bool(forKey: "practised") {
+                section = .live
+                engine.startPractice(for: Effect.allCases)
+            }
+        }
+        // Practising, recording and photographing the background all happen over the live picture.
+        .onChange(of: engine.practice) { _, now in if now != nil { section = .live } }
+        .onChange(of: engine.recording) { _, now in if now != nil { section = .live } }
+        .onChange(of: engine.countdown) { _, now in if now != nil { section = .live } }
+    }
+}
+
+/// The camera as the others see it, with what is going on written over and under it.
+struct LiveView: View {
+    @ObservedObject var engine: Engine
+    @ObservedObject var camera: VirtualCamera
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,26 +160,7 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
-        .frame(minWidth: 680, minHeight: 480)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showingCommands = true } label: { Label("Comandos", systemImage: "hand.raised") }
-                    .help("Elige qué posición de manos activa cada efecto")
-            }
-        }
-        .sheet(isPresented: $showingCommands) { CommandsView(engine: engine) }
         .animation(.easeOut(duration: 0.25), value: engine.practice)
-        .alert("No se pudo grabar la posición", isPresented: Binding(get: { engine.recordProblem != nil }, set: { if !$0 { engine.recordProblem = nil } })) {
-            Button("Entendido", role: .cancel) {}
-        } message: {
-            Text(engine.recordProblem ?? "")
-        }
-        .onChange(of: engine.access) { _, access in
-            // The first time the camera is on: walk through the gesture of each effect.
-            if access == .granted, !UserDefaults.standard.bool(forKey: "practised") {
-                engine.startPractice(for: Effect.allCases)
-            }
-        }
     }
 
     /// What is missing before the swap can hide the person completely.
@@ -156,86 +212,6 @@ struct StatePill: View {
         .padding(.vertical, 5)
         .background(tint.opacity(0.12), in: Capsule())
         .animation(.easeOut(duration: 0.15), value: look)
-    }
-}
-
-/// Which hand position starts each effect.
-struct CommandsView: View {
-    @ObservedObject var engine: Engine
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Form {
-                ForEach(Effect.allCases) { effect in
-                    Section {
-                        Picker("Posición de manos", selection: binding(effect)) {
-                            // The recorded one is offered only once there is a recording for this effect.
-                            ForEach(Gesture.allCases.filter { $0 != .custom || engine.poses[effect] != nil }) { gesture in Text(gesture.title).tag(gesture) }
-                        }
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text((engine.commands[effect] ?? .none).symbol).font(.system(size: 30))
-                            Text((engine.commands[effect] ?? .none).hint).font(.callout).foregroundStyle(.secondary)
-                            Spacer(minLength: 8)
-                            Button("Practicar") {
-                                dismiss()
-                                engine.startPractice(for: [effect])
-                            }
-                            .disabled((engine.commands[effect] ?? Gesture.none) == Gesture.none)
-                        }
-                        LabeledContent(engine.poses[effect].map { "Tu propia posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
-                            Button(engine.poses[effect] == nil ? "Grabar posición…" : "Volver a grabar…") {
-                                dismiss()
-                                engine.startRecording(for: effect)
-                            }
-                        }
-                        LabeledContent("Atajo de teclado") {
-                            Text(effect.shortcut).font(.body.monospaced()).foregroundStyle(.secondary)
-                        }
-                        WordingFields(effect: effect)
-                        if let other = clash(effect) {
-                            Label("«\(other.title)» usa la misma posición: se activará ese y no este.", systemImage: "exclamationmark.triangle")
-                                .font(.callout).foregroundStyle(.orange)
-                        }
-                    } header: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(effect.title).font(.headline).foregroundStyle(.primary)
-                            Text(effect.detail).font(.callout).foregroundStyle(.secondary)
-                        }
-                        .textCase(nil)
-                        .padding(.bottom, 4)
-                    }
-                }
-                Section {
-                    Text("Mantén la posición algo más de medio segundo. La misma posición apaga el efecto; la de otro efecto cambia a ese. Los atajos funcionan aunque la videollamada esté al frente.")
-                        .font(.callout).foregroundStyle(.secondary)
-                    Button("Practicar todas las posiciones") {
-                        dismiss()
-                        engine.startPractice(for: Effect.allCases)
-                    }
-                }
-            }
-            .formStyle(.grouped)
-
-            Divider()
-            HStack {
-                Spacer()
-                Button("Listo") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-        }
-        .frame(width: 520, height: 720)
-    }
-
-    private func binding(_ effect: Effect) -> Binding<Gesture> {
-        Binding(get: { engine.commands[effect] ?? .none }, set: { engine.commands[effect] = $0 })
-    }
-
-    /// An earlier effect bound to the same gesture wins; say so instead of failing silently.
-    private func clash(_ effect: Effect) -> Effect? {
-        guard let gesture = engine.commands[effect], gesture != .none else { return nil }
-        return Effect.allCases.prefix(while: { $0 != effect }).first { engine.commands[$0] == gesture }
     }
 }
 

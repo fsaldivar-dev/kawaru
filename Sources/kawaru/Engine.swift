@@ -232,27 +232,56 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
     }
 
+    /// A camera Kawaru can take its picture from.
+    struct Source: Identifiable, Hashable { let id: String; let name: String }
+    @Published private(set) var sources: [Source] = []
+    @Published private(set) var sourceID = ""
+
+    /// Every real camera: built in, plugged in, or an iPhone. Not Kawaru's own virtual camera.
+    private static func devices() -> [AVCaptureDevice] {
+        AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external, .continuityCamera], mediaType: .video, position: .unspecified)
+            .devices.filter { $0.localizedName != "Kawaru" }
+    }
+
+    /// Switch to another camera. Remembered for the next launch.
+    func selectSource(_ id: String) {
+        guard id != sourceID, access == .granted else { return }
+        UserDefaults.standard.set(id, forKey: "camera.id")
+        configure()
+    }
+
+    private var hasOutput = false
+
     private func configure() {
-        let builtIn = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: .video, position: .unspecified).devices.first
-        guard let device = builtIn ?? AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device) else {
-            access = .noCamera; return
+        let all = Engine.devices()
+        sources = all.map { Source(id: $0.uniqueID, name: $0.localizedName) }
+        let saved = UserDefaults.standard.string(forKey: "camera.id")
+        let chosen = all.first { $0.uniqueID == saved } ?? all.first { $0.deviceType == .builtInWideAngleCamera } ?? all.first
+        guard let device = chosen ?? AVCaptureDevice.default(for: .video), let input = try? AVCaptureDeviceInput(device: device) else {
+            if access != .granted { access = .noCamera }
+            return
         }
         access = .granted
         cameraName = device.localizedName
+        sourceID = device.uniqueID
         queue.async {
             self.session.beginConfiguration()
             self.session.sessionPreset = .hd1280x720
+            for old in self.session.inputs { self.session.removeInput(old) }
             if self.session.canAddInput(input) { self.session.addInput(input) }
-            let output = AVCaptureVideoDataOutput()
-            // The size is asked for here as well: the preset alone left this Mac's camera at 1920x1080 (seen in the
-            // log), which more than doubles the work and does not match the virtual camera's 1280x720.
-            output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                                    kCVPixelBufferWidthKey as String: 1280, kCVPixelBufferHeightKey as String: 720]
-            output.alwaysDiscardsLateVideoFrames = true
-            output.setSampleBufferDelegate(self, queue: self.queue)
-            if self.session.canAddOutput(output) { self.session.addOutput(output) }
+            if !self.hasOutput {
+                self.hasOutput = true
+                let output = AVCaptureVideoDataOutput()
+                // The size is asked for here as well: the preset alone left this Mac's camera at 1920x1080 (seen in the
+                // log), which more than doubles the work and does not match the virtual camera's 1280x720.
+                output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                                        kCVPixelBufferWidthKey as String: 1280, kCVPixelBufferHeightKey as String: 720]
+                output.alwaysDiscardsLateVideoFrames = true
+                output.setSampleBufferDelegate(self, queue: self.queue)
+                if self.session.canAddOutput(output) { self.session.addOutput(output) }
+            }
             self.session.commitConfiguration()
-            self.session.startRunning()
+            if !self.session.isRunning { self.session.startRunning() }
         }
     }
 
