@@ -323,7 +323,13 @@ struct PracticeCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
-            Text(gesture.symbol).font(.system(size: 46)).frame(minWidth: 64)
+            if gesture == .custom, let effect = engine.practiceEffect, let photo = engine.posePhotos[effect] {
+                // The user's own photo of the position, as a reminder of what they recorded.
+                Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit).frame(height: 84)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                Text(gesture.symbol).font(.system(size: 46)).frame(minWidth: 64)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(done ? "¡Listo! \(gesture.title)" : "Practica: \(gesture.title)").font(.headline)
                 Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

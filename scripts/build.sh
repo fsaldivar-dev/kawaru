@@ -14,6 +14,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/kawaru"
 
+# Illustrations of the effects, for the gallery.
+if compgen -G "assets/efectos/*.png" > /dev/null; then
+  mkdir -p "$APP/Contents/Resources/efectos"
+  cp assets/efectos/*.png "$APP/Contents/Resources/efectos/"
+fi
+
 # Icon: assets/icon_1024.png is the master (an 824 px tile centred on a transparent 1024 px canvas).
 if [[ -f assets/icon_1024.png ]]; then
   ICONSET="build/AppIcon.iconset"

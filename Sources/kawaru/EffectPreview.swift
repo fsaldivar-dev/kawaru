@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreImage
 import Foundation
+import ImageIO
 
 /// A small picture of what each effect does, for the gallery: a drawn room with a drawn figure in it, and the
 /// effect's own artwork over them. Nothing from the camera is used, so the gallery never shows the user.
@@ -12,6 +13,17 @@ enum EffectPreview {
 
     private static func color(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
         CGColor(colorSpace: space, components: [CGFloat((hex >> 16) & 0xff) / 255, CGFloat((hex >> 8) & 0xff) / 255, CGFloat(hex & 0xff) / 255, a])!
+    }
+
+    private static var art: [Effect: CGImage] = [:]
+
+    /// The illustration shipped with the app for this effect, if there is one.
+    static func illustration(_ effect: Effect) -> CGImage? {
+        if let image = art[effect] { return image }
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("efectos/\(effect.rawValue).png"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        art[effect] = image
+        return image
     }
 
     /// The room with the figure in it and no effect: what the camera shows before.

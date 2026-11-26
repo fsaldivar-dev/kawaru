@@ -62,6 +62,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
     /// The positions recorded so far, one per effect at most. Remembered between launches.
     @Published private(set) var poses: [Effect: PoseTemplate] = Engine.savedPoses()
+    /// A photo of the user holding each recorded position, to remember it by.
+    @Published private(set) var posePhotos: [Effect: NSImage] = Dictionary(uniqueKeysWithValues: Effect.allCases.compactMap { e in PosePhoto.load(e).map { (e, $0) } })
     /// The effect a position is being recorded for, if any.
     @Published private(set) var recording: Effect?
     /// Seconds left before recording starts; nil once it is recording.
@@ -103,7 +105,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         queue.async { self.sampling = nil; self.quiet = false }
     }
 
-    private func finishRecording(_ effect: Effect, _ pose: PoseTemplate?) {
+    private func finishRecording(_ effect: Effect, _ pose: PoseTemplate?, photo: Data?) {
         queue.async { self.quiet = false }
         guard recording == effect else { return }
         recording = nil
@@ -112,6 +114,12 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
             return
         }
         poses[effect] = pose
+        if let photo {
+            PosePhoto.save(photo, for: effect)
+            posePhotos[effect] = NSImage(data: photo)
+        } else {
+            PosePhoto.delete(effect); posePhotos[effect] = nil   // never show the photo of an older position
+        }
         if let data = try? JSONEncoder().encode(pose) { UserDefaults.standard.set(data, forKey: "pose." + effect.rawValue) }
         let copy = poses
         queue.async { self.templates = copy }
@@ -122,7 +130,7 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
     }
 
     /// The effect whose recorded position is being practised.
-    private var practiceEffect: Effect? {
+    @Published private(set) var practiceEffect: Effect? {
         didSet { let e = practiceEffect; queue.async { self.practisingEffect = e } }
     }
 
@@ -326,7 +334,8 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 if let pose { print(String(format: "pose: grabada para %@, %d mano(s), tolerancia %.2f, cara=%@, manos vistas por fotograma: %@", effect.rawValue, pose.hands.count, pose.tolerance, pose.faceOffset == nil ? "no" : "si", handCounts)) }
                 else { print("pose: grabación sin manos suficientes") }
                 fflush(stdout)
-                DispatchQueue.main.async { self.finishRecording(effect, pose) }
+                let photo = pose == nil ? nil : PosePhoto.encode(frame)
+                DispatchQueue.main.async { self.finishRecording(effect, pose, photo: photo) }
             }
         }
 

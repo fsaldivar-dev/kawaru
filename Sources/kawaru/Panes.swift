@@ -52,7 +52,7 @@ struct EffectCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PreviewImage(image: EffectPreview.after(effect))
+            PreviewImage(image: EffectPreview.illustration(effect) ?? EffectPreview.after(effect))
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(effect.title).font(.headline).lineLimit(1)
@@ -95,8 +95,13 @@ struct EffectDetail: View {
             SwiftUI.Section {
                 VStack(alignment: .leading, spacing: 10) {
                     ZStack {
-                        PreviewImage(image: EffectPreview.before)
-                        PreviewImage(image: EffectPreview.after(effect)).opacity(showingAfter ? 1 : 0)
+                        if let art = EffectPreview.illustration(effect) {
+                            PreviewImage(image: art)
+                        } else {
+                            // No illustration shipped: the drawn stand-in, alternating before and after.
+                            PreviewImage(image: EffectPreview.before)
+                            PreviewImage(image: EffectPreview.after(effect)).opacity(showingAfter ? 1 : 0)
+                        }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .onReceive(flip) { _ in withAnimation(.easeInOut(duration: 0.45)) { showingAfter.toggle() } }
@@ -125,6 +130,11 @@ struct EffectDetail: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(gesture.symbol).font(.system(size: 26))
                     Text(gesture.hint).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if gesture == .custom, let photo = engine.posePhotos[effect] {
+                    Image(nsImage: photo).resizable().aspectRatio(contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .accessibilityLabel("Foto de ti haciendo la posición grabada")
                 }
                 LabeledContent(engine.poses[effect].map { "Tu posición: \($0.summary.lowercased())" } ?? "Tu propia posición") {
                     Button(engine.poses[effect] == nil ? "Grabar…" : "Volver a grabar…") { engine.startRecording(for: effect) }
@@ -177,7 +187,7 @@ struct CameraView: View {
             } header: {
                 Text("Tu cámara")
             } footer: {
-                Text("La imagen se procesa en tu Mac. No se guarda ni se envía a ningún lado.").frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                Text("La imagen se procesa en tu Mac y no se envía a ningún lado. Lo único que se guarda, y solo en este Mac, es la foto que se toma al grabar una posición de manos.").frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
             }
 
             SwiftUI.Section {
