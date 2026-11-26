@@ -205,7 +205,7 @@ struct RotuloEditor: View {
                 if rotulo.kind == .social {
                     LabeledContent("Icono") {
                         HStack(spacing: 10) {
-                            Text(rotulo.iconPath == nil ? "Iniciales de la red" : "Tu imagen").foregroundStyle(.secondary)
+                            Text(rotulo.iconPath == nil ? "Logo de la red" : "Tu imagen").foregroundStyle(.secondary)
                             if rotulo.iconPath != nil { Button("Quitar") { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = nil } }
                             Button("Elegir imagen…") { if let path = OwnIcon.choose() { OwnIcon.remove(rotulo.iconPath); rotulo.iconPath = path } }
                         }

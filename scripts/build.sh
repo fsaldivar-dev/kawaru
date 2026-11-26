@@ -20,6 +20,12 @@ if compgen -G "assets/efectos/*.jpg" > /dev/null; then
   cp assets/efectos/*.jpg assets/efectos/*.mp4 "$APP/Contents/Resources/efectos/"
 fi
 
+# The networks' logos for the social captions (white on clear; from Simple Icons, CC0).
+if compgen -G "assets/redes/*.png" > /dev/null; then
+  mkdir -p "$APP/Contents/Resources/redes"
+  cp assets/redes/*.png "$APP/Contents/Resources/redes/"
+fi
+
 # The illustrated plates behind the wooden and neon captions.
 if compgen -G "assets/rotulos/*.png" > /dev/null; then
   mkdir -p "$APP/Contents/Resources/rotulos"

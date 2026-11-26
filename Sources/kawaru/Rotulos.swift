@@ -56,7 +56,7 @@ struct Rotulo: Codable, Identifiable, Hashable {
         }
     }
 
-    /// Where a social caption points. Shown as the network's initials on its colour: no logo artwork is shipped.
+    /// Where a social caption points. Shown as the network's logo on its colour; its initials if the logo is missing.
     enum Network: String, Codable, CaseIterable, Identifiable {
         case linkedin, github, x, instagram, youtube, twitch, tiktok, web
 
@@ -708,6 +708,38 @@ enum Rotulos {
     }
 
     private static var icons: [String: CGImage] = [:]
+    private static var logos: [String: CGImage] = [:]
+
+    /// The network's logo, white on clear, as shipped with the app.
+    private static func logo(_ net: Rotulo.Network) -> CGImage? {
+        if let made = logos[net.rawValue] { return made }
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("redes/\(net.rawValue).png"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        logos[net.rawValue] = image
+        return image
+    }
+
+    /// The square that says which network: the user's own picture if they chose one, else the network's logo
+    /// on its colour, else (for a website, which has no logo) a globe, else its initials.
+    private static func badge(of r: Rotulo, _ ctx: CGContext, in tile: CGRect) {
+        let net = r.network, shape = rounded(tile, tile.width * 0.26)
+        if let own = icon(r) {
+            ctx.saveGState(); ctx.addPath(shape); ctx.clip(); ctx.interpolationQuality = .high; ctx.draw(own, in: tile); ctx.restoreGState()
+            return
+        }
+        fill(ctx, shape, color(net.tint))
+        if let art = logo(net) {
+            ctx.interpolationQuality = .high; ctx.draw(art, in: tile)
+        } else if net == .web {
+            let globe = tile.insetBy(dx: tile.width * 0.2, dy: tile.width * 0.2)
+            ctx.setStrokeColor(color(0xffffff)); ctx.setLineWidth(tile.width * 0.06)
+            ctx.strokeEllipse(in: globe); ctx.strokeEllipse(in: globe.insetBy(dx: globe.width * 0.27, dy: 0))
+            ctx.move(to: CGPoint(x: globe.minX, y: globe.midY)); ctx.addLine(to: CGPoint(x: globe.maxX, y: globe.midY)); ctx.strokePath()
+        } else {
+            let mark = line(net.initials, "AvenirNext-Bold", tile.width * (net.initials.count > 2 ? 0.43 : 0.6), color(0xffffff))
+            put(mark, ctx, x: tile.midX - width(mark) / 2, y: tile.midY - tile.width * 0.2)
+        }
+    }
 
     /// The user's own icon for a social caption, if they chose one and the file is still there.
     private static func icon(_ r: Rotulo) -> CGImage? {
@@ -761,19 +793,11 @@ enum Rotulos {
                 put(words, ctx, x: 42, y: 14)
             }
         case .social:
-            let net = r.network
             let words = fitted(r.title, faces.0, 20, ink, fit: 420)
-            let mark = line(net.initials, "AvenirNext-Bold", net.initials.count > 2 ? 13 : 18, color(0xffffff))
             let size = CGSize(width: width(words) + 80, height: 50)
             return canvas(size, unit) { ctx in
                 box(ctx, size)
-                let tile = CGRect(x: 11, y: 10, width: 30, height: 30)
-                if let own = icon(r) {
-                    ctx.saveGState(); ctx.addPath(rounded(tile, 8)); ctx.clip(); ctx.interpolationQuality = .high; ctx.draw(own, in: tile); ctx.restoreGState()
-                } else {
-                    fill(ctx, rounded(tile, 8), accent)
-                    put(mark, ctx, x: tile.midX - width(mark) / 2, y: tile.midY - (net.initials.count > 2 ? 5 : 6.5))
-                }
+                badge(of: r, ctx, in: CGRect(x: 11, y: 10, width: 30, height: 30))
                 put(words, ctx, x: 52, y: 17)
             }
         case .card:
@@ -783,18 +807,8 @@ enum Rotulos {
 
     /// A social handle: the network's initials on its colour, and the user's name there.
     private static func social(_ r: Rotulo, _ unit: CGFloat) -> CGImage {
-        let net = r.network
-        let mark = line(net.initials, "AvenirNext-Bold", net.initials.count > 2 ? 13 : 18, color(0xffffff))
-        // The tile with the initials, `side` square, drawn with its corner at (x, y).
-        func tile(_ ctx: CGContext, x: CGFloat, y: CGFloat, side: CGFloat) {
-            if let own = icon(r) {   // the user's own picture, as they made it
-                ctx.saveGState(); ctx.addPath(rounded(CGRect(x: x, y: y, width: side, height: side), side * 0.26)); ctx.clip()
-                ctx.interpolationQuality = .high; ctx.draw(own, in: CGRect(x: x, y: y, width: side, height: side)); ctx.restoreGState()
-                return
-            }
-            fill(ctx, rounded(CGRect(x: x, y: y, width: side, height: side), side * 0.26), color(net.tint))
-            put(mark, ctx, x: x + (side - width(mark)) / 2, y: y + side / 2 - (net.initials.count > 2 ? 5 : 6.5))
-        }
+        // The tile with the network's logo, `side` square, drawn with its corner at (x, y).
+        func tile(_ ctx: CGContext, x: CGFloat, y: CGFloat, side: CGFloat) { badge(of: r, ctx, in: CGRect(x: x, y: y, width: side, height: side)) }
         switch r.theme {
         case .custom: return plain(r, unit, full: nil)
         case .minimal:
