@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /// The parts of the window, listed in the sidebar.
 enum Pane: String, CaseIterable, Identifiable {
-    case live, effects, camera, about
+    case live, effects, captions, camera, about
 
     var id: String { rawValue }
 
@@ -69,6 +69,7 @@ enum Pane: String, CaseIterable, Identifiable {
         switch self {
         case .live: "En vivo"
         case .effects: "Efectos"
+        case .captions: "Rótulos"
         case .camera: "Cámara"
         case .about: "Acerca de"
         }
@@ -78,6 +79,7 @@ enum Pane: String, CaseIterable, Identifiable {
         switch self {
         case .live: "video"
         case .effects: "sparkles"
+        case .captions: "textformat"
         case .camera: "web.camera"
         case .about: "info.circle"
         }
@@ -126,6 +128,7 @@ struct ContentView: View {
                 switch section {
                 case .live: LiveView(engine: engine, camera: camera)
                 case .effects: EffectsView(engine: engine, guide: guide, section: $section)
+                case .captions: RotulosView(engine: engine, section: $section)
                 case .camera: CameraView(engine: engine, camera: camera, section: $section)
                 case .about: AboutView { touring = true }
                 }
@@ -162,8 +165,9 @@ struct LiveView: View {
                 Color.black
                 switch engine.access {
                 case .granted:
-                    Preview(layer: engine.display, mirrored: !engine.look.hasText)
-                    if !engine.joints.isEmpty { HandMarksView(hands: engine.joints, mirrored: !engine.look.hasText) }
+                    // Not mirrored while there is writing on the picture: it has to read the right way round.
+                    Preview(layer: engine.display, mirrored: !(engine.look.hasText || !engine.captionsUp.isEmpty))
+                    if !engine.joints.isEmpty { HandMarksView(hands: engine.joints, mirrored: !(engine.look.hasText || !engine.captionsUp.isEmpty)) }
                     if let effect = engine.recording {
                         RecordingCard(engine: engine, effect: effect)
                     } else if let gesture = engine.practice, engine.countdown == nil {

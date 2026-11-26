@@ -70,7 +70,7 @@ final class Compositor {
     /// True once a filter that ends by itself (the confetti, the break) has run its course.
     private(set) var expired = false
 
-    func render(frame: CVPixelBuffer, mask: CVPixelBuffer?, look: Look, resetPlate: Bool, now: Double) -> CVPixelBuffer {
+    func render(frame: CVPixelBuffer, mask: CVPixelBuffer?, look: Look, resetPlate: Bool, now: Double, captions: [Rotulos.Showing] = []) -> CVPixelBuffer {
         let active = look == .trunk
         let w = CVPixelBufferGetWidth(frame), h = CVPixelBufferGetHeight(frame)
         if size != CGSize(width: w, height: h) { resize(w, h) }
@@ -247,6 +247,8 @@ final class Compositor {
             let centre = CGPoint(x: (spot?.x ?? 0.5) * CGFloat(w), y: (spot?.top ?? 0.8) * 0.55 * CGFloat(h))
             scene = smoke(over: scene, t: burst, centre: centre, reach: hypot(CGFloat(w), CGFloat(h)) * 0.62)
         }
+        // The captions go over everything, effects included.
+        if !captions.isEmpty { scene = Rotulos.apply(captions, to: scene, extent: extent, now: now) }
         context.render(scene.cropped(to: extent), to: out, bounds: extent, colorSpace: space)
         if ProcessInfo.processInfo.environment["KAWARU_DEBUG"] != nil, now - lastDebug > 1 {
             lastDebug = now

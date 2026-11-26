@@ -20,6 +20,20 @@ if compgen -G "assets/efectos/*.jpg" > /dev/null; then
   cp assets/efectos/*.jpg assets/efectos/*.mp4 "$APP/Contents/Resources/efectos/"
 fi
 
+# The illustrated plates behind the wooden and neon captions.
+if compgen -G "assets/rotulos/*.png" > /dev/null; then
+  mkdir -p "$APP/Contents/Resources/rotulos"
+  cp assets/rotulos/*.png "$APP/Contents/Resources/rotulos/"
+fi
+
+# The model photos, for showing captions over in the editor.
+if [[ -f assets/modelo/persona.png ]]; then
+  mkdir -p "$APP/Contents/Resources/modelo"
+  for who in persona mujer; do
+    [[ -f assets/modelo/$who.png ]] && sips -s format jpeg -s formatOptions 82 assets/modelo/$who.png --out "$APP/Contents/Resources/modelo/$who.jpg" >/dev/null
+  done
+fi
+
 # Icon: assets/icon_1024.png is the master (an 824 px tile centred on a transparent 1024 px canvas).
 if [[ -f assets/icon_1024.png ]]; then
   ICONSET="build/AppIcon.iconset"

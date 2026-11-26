@@ -28,6 +28,27 @@ struct MenuPanel: View {
                 }
             }
 
+            if !engine.rotulos.isEmpty {
+                Divider()
+                Text("Rótulos").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    ForEach(Array(engine.rotulos.prefix(9).enumerated()), id: \.element.id) { index, rotulo in
+                        let up = engine.captionsUp.contains(rotulo.id)
+                        Button { engine.toggle(rotulo) } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: up ? "checkmark.circle.fill" : rotulo.kind.symbol).foregroundStyle(up ? Color.green : Color.secondary).frame(width: 20)
+                                Text(rotulo.title.isEmpty ? rotulo.kind.title : rotulo.title).lineLimit(1)
+                                Spacer()
+                                Text("⌃⌥⇧\(index + 1)").font(.caption.monospaced()).foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
             Divider()
             Toggle("Gestos de manos", isOn: $engine.gesturesOn)
                 .help("Apágalos cuando vayas a mover mucho las manos; los atajos y estos botones siguen funcionando.")

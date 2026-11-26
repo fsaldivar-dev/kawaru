@@ -168,8 +168,17 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
 
     private func registerShortcuts() {
         hotkeys.onPress = { [weak self] id in
-            guard let self, Effect.allCases.indices.contains(id) else { return }
+            guard let self else { return }
+            if id >= 100 {
+                // Control-Option-Shift and a digit: the captions, in the order they are listed.
+                if self.rotulos.indices.contains(id - 100) { self.toggle(self.rotulos[id - 100]) }
+                return
+            }
+            guard Effect.allCases.indices.contains(id) else { return }
             self.toggle(Effect.allCases[id])
+        }
+        for (i, key) in [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9].enumerated() {
+            hotkeys.register(id: 100 + i, keyCode: key, modifiers: controlKey | optionKey | shiftKey)
         }
         for (i, effect) in Effect.allCases.enumerated() {
             if !hotkeys.register(id: i, keyCode: effect.keyCode, modifiers: controlKey | optionKey) {
@@ -279,6 +288,49 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
                 if want { if !self.session.isRunning { self.session.startRunning() } } else if self.session.isRunning { self.session.stopRunning() }
             }
         }
+    }
+
+    // MARK: Captions
+
+    /// The user's captions, in the order they are listed. Remembered between launches.
+    @Published var rotulos: [Rotulo] = Engine.savedRotulos() {
+        didSet {
+            if let data = try? JSONEncoder().encode(rotulos) { UserDefaults.standard.set(data, forKey: "rotulos") }
+            let copy = Dictionary(uniqueKeysWithValues: rotulos.map { ($0.id, $0) })
+            queue.async { self.library = copy }
+        }
+    }
+    /// The captions that are up right now (not the ones on their way out).
+    @Published private(set) var captionsUp: Set<UUID> = []
+    private var library = Dictionary(uniqueKeysWithValues: Engine.savedRotulos().map { ($0.id, $0) })
+    private var showing: [UUID: Rotulos.Showing] = [:]
+
+    private static func savedRotulos() -> [Rotulo] {
+        if let data = UserDefaults.standard.data(forKey: "rotulos"), let saved = try? JSONDecoder().decode([Rotulo].self, from: data) { return saved }
+        // First time: one of each kind, so there is something to try. Saved at once so their identity sticks.
+        let first = Rotulo.starters
+        if let data = try? JSONEncoder().encode(first) { UserDefaults.standard.set(data, forKey: "rotulos") }
+        return first
+    }
+
+    /// Puts a caption up, or takes it down if it is up.
+    func toggle(_ rotulo: Rotulo) {
+        let id = rotulo.id
+        queue.async {
+            let now = CACurrentMediaTime()
+            if var item = self.showing[id], item.leaving == nil {
+                item.leaving = now; self.showing[id] = item
+            } else if let fresh = self.library[id] {
+                self.showing[id] = Rotulos.Showing(rotulo: fresh, since: now, leaving: nil)
+            }
+            self.publishCaptions()
+        }
+    }
+
+    /// Call on `queue`.
+    private func publishCaptions() {
+        let up = Set(showing.filter { $0.value.leaving == nil }.keys)
+        DispatchQueue.main.async { if self.captionsUp != up { self.captionsUp = up } }
     }
 
     private var started = false
@@ -492,8 +544,21 @@ final class Engine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBu
         }
         for g in seen { seenCounts[g, default: 0] += 1 }
 
+        // Captions: the ones that have run their time start to leave, and the ones that have left are dropped.
+        if !showing.isEmpty {
+            var changed = false
+            for (id, item) in showing {
+                guard let fresh = library[id] else { showing[id] = nil; changed = true; continue }
+                var item = item
+                item.rotulo = fresh   // edits show at once
+                if item.leaving == nil, fresh.seconds > 0, began - item.since > fresh.seconds + Rotulos.enterTime { item.leaving = began; changed = true }
+                if let leaving = item.leaving, began - leaving > Rotulos.leaveTime { showing[id] = nil; changed = true } else { showing[id] = item }
+            }
+            if changed { publishCaptions() }
+        }
+        let captions = showing.values.sorted { $0.since < $1.since }
         let shown = compositor.render(frame: frame, mask: needMask ? segmentation.results?.first?.pixelBuffer : nil, look: current,
-                                      resetPlate: resetPlate, now: began)
+                                      resetPlate: resetPlate, now: began, captions: captions)
         if compositor.expired { current = .person }   // the confetti and the break end by themselves
         if resetPlate {
             resetPlate = false
